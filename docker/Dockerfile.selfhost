@@ -1,0 +1,22 @@
+# Offline self-host image: builds the static bundle and serves it with nginx.
+# The app is 100% client-side, so this container is a plain file server --
+# useful in a studio with no internet, and identical to what GitHub Pages serves.
+
+FROM node:24-bookworm-slim AS build
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+COPY packages/engine/package.json packages/engine/
+COPY packages/cli/package.json packages/cli/
+COPY packages/app/package.json packages/app/
+RUN npm ci || npm install
+
+COPY . .
+# Self-hosted builds are served from the domain root, unlike the Pages build
+# which lives under /SlipCasting-Site/.
+RUN VITE_BASE=/ npm run build --workspace @slipcast/app
+
+FROM nginx:1.27-alpine AS serve
+COPY --from=build /app/packages/app/dist /usr/share/nginx/html
+COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80

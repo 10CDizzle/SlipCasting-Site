@@ -1,0 +1,13 @@
+node_modules
+**/node_modules
+dist
+**/dist
+coverage
+test-results
+playwright-report
+.git
+.github
+docs/media/*.gif
+tmp
+out
+*.log

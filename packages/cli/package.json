@@ -1,0 +1,17 @@
+{
+  "name": "@slipcast/cli",
+  "version": "0.1.0",
+  "description": "Headless CLI over @slipcast/engine. Generates mold geometry without a browser; used by CI and the media capture script.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "slipcast": "./src/main.ts"
+  },
+  "scripts": {
+    "start": "node --experimental-strip-types src/main.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@slipcast/engine": "*"
+  }
+}

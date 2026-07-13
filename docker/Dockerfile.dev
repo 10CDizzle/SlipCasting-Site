@@ -1,0 +1,18 @@
+# Dev + unit-test toolchain. Nothing is installed on the host machine.
+FROM node:24-bookworm-slim
+
+# git: used by the media/CI scripts. ca-certificates: npm registry over TLS.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# node_modules live in named volumes (see docker-compose.yml), never on the host,
+# so a bare image with the toolchain is all we need here.
+ENV NODE_ENV=development \
+    CI=false
+
+EXPOSE 5173
+
+CMD ["bash"]

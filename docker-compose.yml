@@ -1,0 +1,46 @@
+# All tooling runs in containers -- nothing is installed on the host.
+#
+#   docker compose run --rm dev npm install     # first time, and after dep changes
+#   docker compose up dev                       # Vite hot reload on http://localhost:5173
+#   docker compose run --rm dev npm test        # the headless per-module suite
+#   docker compose run --rm dev bash            # a shell in the toolchain
+#
+# node_modules live in named volumes, not on the host bind mount: it keeps
+# Windows<->Linux path and permission differences out of the install, and it's
+# dramatically faster than bind-mounting thousands of small files.
+
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dev
+    working_dir: /app
+    volumes:
+      - .:/app
+      - node_modules_root:/app/node_modules
+      - node_modules_engine:/app/packages/engine/node_modules
+      - node_modules_cli:/app/packages/cli/node_modules
+      - node_modules_app:/app/packages/app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      # Bind mounts on Windows don't emit inotify events; Vite needs to poll.
+      CHOKIDAR_USEPOLLING: "true"
+      VITE_HOST: "0.0.0.0"
+    command: npm run dev -- --host 0.0.0.0
+
+  # Offline / studio deployment: the same static bundle GitHub Pages serves.
+  #   docker compose up selfhost   ->  http://localhost:8080
+  selfhost:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.selfhost
+    ports:
+      - "8080:80"
+    profiles: ["selfhost"]
+
+volumes:
+  node_modules_root:
+  node_modules_engine:
+  node_modules_cli:
+  node_modules_app:

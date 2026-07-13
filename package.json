@@ -1,0 +1,30 @@
+{
+  "name": "slipcast",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Turn a solid model into printable geometry for plaster slip-casting molds. Runs entirely in the browser.",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "packages/engine",
+    "packages/cli",
+    "packages/app"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:engine": "npm run test --workspace @slipcast/engine",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "dev": "npm run dev --workspace @slipcast/app",
+    "cli": "npm run start --workspace @slipcast/cli --"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

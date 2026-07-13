@@ -1,0 +1,44 @@
+# The headless test suite. No GUI, no browser window, no human.
+#
+#   docker compose -f docker-compose.test.yml run --rm test   # unit + property tests
+#   docker compose -f docker-compose.test.yml run --rm e2e    # Playwright, headless Chromium
+#
+# `test` runs the geometry engine in Node -- the exact same code the browser
+# runs, which is the whole point of a TypeScript engine.
+
+services:
+  test:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dev
+    working_dir: /app
+    volumes:
+      - .:/app
+      - node_modules_root:/app/node_modules
+      - node_modules_engine:/app/packages/engine/node_modules
+      - node_modules_cli:/app/packages/cli/node_modules
+      - node_modules_app:/app/packages/app/node_modules
+    environment:
+      CI: "true"
+    command: npm test
+
+  e2e:
+    # Ships Node + the browsers preinstalled; must stay in lockstep with the
+    # @playwright/test version in packages/app.
+    image: mcr.microsoft.com/playwright:v1.49.1-noble
+    working_dir: /app
+    volumes:
+      - .:/app
+      - node_modules_root:/app/node_modules
+      - node_modules_engine:/app/packages/engine/node_modules
+      - node_modules_cli:/app/packages/cli/node_modules
+      - node_modules_app:/app/packages/app/node_modules
+    environment:
+      CI: "true"
+    command: npm run e2e --workspace @slipcast/app
+
+volumes:
+  node_modules_root:
+  node_modules_engine:
+  node_modules_cli:
+  node_modules_app:

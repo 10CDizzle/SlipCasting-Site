@@ -1,1 +1,24 @@
 MoldingTool.txt
+
+node_modules/
+dist/
+build/
+coverage/
+.vite/
+*.tsbuildinfo
+
+# Test + media output
+test-results/
+playwright-report/
+tmp/
+out/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+
+# Env
+.env
+.env.local
