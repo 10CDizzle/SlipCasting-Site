@@ -263,14 +263,7 @@ export async function parse3MF(bytes: Uint8Array): Promise<MeshData> {
  * worth making on a static site.
  */
 export async function parseSTEP(bytes: Uint8Array): Promise<MeshData> {
-  const mod = await import('occt-import-js');
-  const factory = (mod.default ?? mod) as unknown as () => Promise<{
-    ReadStepFile: (
-      data: Uint8Array,
-      params: unknown,
-    ) => { success: boolean; meshes: Array<{ attributes: { position: { array: number[] } }; index: { array: number[] } }> };
-  }>;
-
+  const { default: factory } = await import('occt-import-js');
   const occt = await factory();
   const result = occt.ReadStepFile(bytes, null);
 

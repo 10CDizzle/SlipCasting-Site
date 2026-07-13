@@ -1,0 +1,317 @@
+/**
+ * Feature dialogs (UI-UX.md §4).
+ *
+ * Tab moves between fields, Enter commits, Escape closes. Numeric fields are
+ * sliders as well as inputs, so dragging one previews the change live -- that is
+ * the "preview slider" from the guide, and it is only affordable because the regen
+ * cache means most of those intermediate states have already been computed.
+ */
+import { useEffect, useRef } from 'react';
+import type { Feature } from '@slipcast/engine';
+import { useStore } from '../state/store.ts';
+
+interface FieldSpec {
+  key: string;
+  label: string;
+  hint?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  unit?: string;
+  options?: Array<{ value: string; label: string }>;
+  type?: 'number' | 'select' | 'boolean';
+  /** Show the raw value as a percentage. */
+  percent?: boolean;
+}
+
+const FIELDS: Record<string, FieldSpec[]> = {
+  import: [
+    {
+      key: 'units',
+      label: 'Units',
+      type: 'select',
+      options: [
+        { value: 'mm', label: 'Millimetres' },
+        { value: 'cm', label: 'Centimetres' },
+        { value: 'm', label: 'Metres' },
+        { value: 'in', label: 'Inches' },
+      ],
+      hint: 'What the numbers in the file mean. Get this wrong and the mold comes out the wrong size.',
+    },
+  ],
+  shrink: [
+    {
+      key: 'shrinkage',
+      label: 'Clay shrinkage',
+      min: 0,
+      max: 0.25,
+      step: 0.005,
+      percent: true,
+      hint: 'Total shrinkage, drying plus firing. Stoneware and porcelain run 10-15%, earthenware 5-10%. The mold is cut oversize by 1/(1-this), so the fired pot lands at the size you drew.',
+    },
+  ],
+  pullDir: [
+    {
+      key: 'mode',
+      label: 'Pull direction',
+      type: 'select',
+      options: [
+        { value: 'auto', label: 'Find it for me' },
+        { value: 'manual', label: 'I will choose' },
+      ],
+      hint: 'The axis the mold halves come apart along. Searching finds an axis with no undercuts, which is not always the obvious one -- a mug parts through its handle, not along its own axis.',
+    },
+    {
+      key: 'minDraft',
+      label: 'Minimum draft',
+      min: 0,
+      max: 15,
+      step: 0.5,
+      unit: '°',
+      hint: 'Faces with less taper than this are flagged amber. They still release, but they drag against the plaster.',
+    },
+  ],
+  block: [
+    {
+      key: 'wallThickness',
+      label: 'Plaster thickness',
+      min: 8,
+      max: 60,
+      step: 1,
+      unit: 'mm',
+      hint: 'How much plaster surrounds the part. Thin molds crack; thick molds are heavy and slow to dry.',
+    },
+    {
+      key: 'blockStyle',
+      label: 'Block shape',
+      type: 'select',
+      options: [
+        { value: 'box', label: 'Rectangular block' },
+        { value: 'conformal', label: 'Conformal (saves plaster)' },
+      ],
+    },
+    {
+      key: 'outerDraft',
+      label: 'Outer draft',
+      min: 0,
+      max: 8,
+      step: 0.5,
+      unit: '°',
+      hint: 'Taper on the outside walls so a printed tray lifts off the set plaster instead of suctioning onto it.',
+    },
+  ],
+  spare: [
+    {
+      key: 'spareDiameter',
+      label: 'Pour hole',
+      min: 8,
+      max: 80,
+      step: 1,
+      unit: 'mm',
+      hint: 'Too narrow and the slip will not flow; too wide and you waste clay and leave a big scar to trim.',
+    },
+    {
+      key: 'spareHeight',
+      label: 'Reservoir height',
+      min: 5,
+      max: 120,
+      step: 1,
+      unit: 'mm',
+      hint: 'The head of slip that keeps feeding the cast as the plaster draws water out and the level drops.',
+    },
+  ],
+  split: [
+    {
+      key: 'split',
+      label: 'Two-part mold',
+      type: 'boolean',
+      hint: 'Off gives a single open mold, which is all a simple tapered form needs.',
+    },
+  ],
+  keys: [
+    {
+      key: 'keyCount',
+      label: 'Registration keys',
+      min: 0,
+      max: 8,
+      step: 1,
+      hint: 'Natches: the cones and sockets that make the halves seat the same way every time.',
+    },
+    { key: 'keyDiameter', label: 'Key size', min: 5, max: 30, step: 1, unit: 'mm' },
+    {
+      key: 'keyClearance',
+      label: 'Key clearance',
+      min: 0,
+      max: 1.5,
+      step: 0.05,
+      unit: 'mm',
+      hint: 'The gap between cone and socket. Zero and the halves bind on plaster that has swollen a hair.',
+    },
+  ],
+  output: [
+    {
+      key: 'mode',
+      label: 'What to print',
+      type: 'select',
+      options: [
+        { value: 'shells', label: 'Trays — pour plaster IN' },
+        { value: 'positive', label: 'The part — pour plaster AROUND it' },
+      ],
+      hint: 'Trays are reusable: print once, cast as many plaster molds as you want. The positive is the traditional route.',
+    },
+    { key: 'shellWall', label: 'Tray wall', min: 1.5, max: 8, step: 0.5, unit: 'mm' },
+  ],
+};
+
+export function FeatureDialog({ feature }: { feature: Feature }) {
+  const updateFeature = useStore((s) => s.updateFeature);
+  const setEditing = useStore((s) => s.setEditing);
+  const first = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    first.current?.focus();
+  }, [feature.id]);
+
+  const fields = FIELDS[feature.type] ?? [];
+
+  return (
+    <div
+      className="border-t border-shell-600 bg-shell-800"
+      data-testid={`dialog-${feature.type}`}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') setEditing(null);
+        if (e.key === 'Enter' && !e.shiftKey) setEditing(null);
+      }}
+    >
+      <div className="flex items-center justify-between px-2.5 py-1.5">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-300">
+          {feature.name}
+        </span>
+        <button
+          onClick={() => setEditing(null)}
+          className="text-ink-500 hover:text-ink-100"
+          title="Close (Esc)"
+        >
+          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
+
+      <div className="space-y-2.5 px-2.5 pb-3">
+        {fields.length === 0 && (
+          <p className="text-[11px] text-ink-500">Nothing to adjust on this feature.</p>
+        )}
+
+        {fields.map((field, i) => (
+          <Field
+            key={field.key}
+            spec={field}
+            value={feature.params[field.key]}
+            autoFocus={i === 0}
+            onChange={(value) => updateFeature(feature.id, { [field.key]: value })}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Field({
+  spec,
+  value,
+  autoFocus,
+  onChange,
+}: {
+  spec: FieldSpec;
+  value: unknown;
+  autoFocus: boolean;
+  onChange: (v: unknown) => void;
+}) {
+  const id = `field-${spec.key}`;
+
+  if (spec.type === 'select') {
+    return (
+      <label className="block" htmlFor={id}>
+        <span className="mb-1 block text-[11px] text-ink-300">{spec.label}</span>
+        <select
+          id={id}
+          data-testid={id}
+          autoFocus={autoFocus}
+          value={String(value ?? '')}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full rounded border border-shell-600 bg-shell-900 px-2 py-1 text-xs text-ink-100 outline-none focus:border-pick"
+        >
+          {spec.options?.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        {spec.hint && <p className="mt-1 text-[10px] leading-snug text-ink-500">{spec.hint}</p>}
+      </label>
+    );
+  }
+
+  if (spec.type === 'boolean') {
+    return (
+      <label className="flex cursor-pointer items-start gap-2" htmlFor={id}>
+        <input
+          id={id}
+          data-testid={id}
+          type="checkbox"
+          checked={Boolean(value)}
+          onChange={(e) => onChange(e.target.checked)}
+          className="mt-0.5 h-3.5 w-3.5 accent-[#2f81f7]"
+        />
+        <span>
+          <span className="block text-[11px] text-ink-100">{spec.label}</span>
+          {spec.hint && <span className="mt-0.5 block text-[10px] leading-snug text-ink-500">{spec.hint}</span>}
+        </span>
+      </label>
+    );
+  }
+
+  const numeric = Number(value ?? 0);
+  const shown = spec.percent ? (numeric * 100).toFixed(1) : String(numeric);
+
+  return (
+    <label className="block" htmlFor={id}>
+      <div className="mb-1 flex items-baseline justify-between">
+        <span className="text-[11px] text-ink-300">{spec.label}</span>
+        <span className="font-mono text-[11px] tabular-nums text-ink-100">
+          {shown}
+          {spec.percent ? '%' : (spec.unit ?? '')}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-2">
+        {/* The preview slider from the guide: drag it and the model updates live. */}
+        <input
+          type="range"
+          min={spec.min}
+          max={spec.max}
+          step={spec.step}
+          value={numeric}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="h-1 flex-1 cursor-pointer appearance-none rounded bg-shell-600 accent-[#2f81f7]"
+          aria-label={`${spec.label} slider`}
+        />
+        <input
+          id={id}
+          data-testid={id}
+          autoFocus={autoFocus}
+          type="number"
+          min={spec.min}
+          max={spec.max}
+          step={spec.step}
+          value={numeric}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="w-16 rounded border border-shell-600 bg-shell-900 px-1.5 py-0.5 text-right font-mono text-[11px] tabular-nums text-ink-100 outline-none focus:border-pick"
+        />
+      </div>
+
+      {spec.hint && <p className="mt-1 text-[10px] leading-snug text-ink-500">{spec.hint}</p>}
+    </label>
+  );
+}

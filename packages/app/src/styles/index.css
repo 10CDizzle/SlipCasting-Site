@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: #101216;
+    color: #e8ecf1;
+    font-feature-settings: 'tnum' 1;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none;
+  }
+
+  /* CAD is a pointing tool. Stray text selection while dragging in the
+     viewport or the feature list is noise, so it is opt-in. */
+  * {
+    user-select: none;
+  }
+  input,
+  textarea,
+  article,
+  [data-selectable] {
+    user-select: text;
+  }
+
+  /* Touch: one finger rotates, two pan, pinch zooms. The browser must not
+     steal those gestures for scrolling (UI-UX.md section 5). */
+  canvas {
+    touch-action: none;
+  }
+
+  ::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #39404b;
+    border-radius: 5px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #5b6675;
+  }
+
+  input[type='range'] {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  input[type='range']::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    height: 12px;
+    width: 12px;
+    border-radius: 50%;
+    background: #2f81f7;
+    cursor: pointer;
+  }
+  input[type='range']::-moz-range-thumb {
+    height: 12px;
+    width: 12px;
+    border: 0;
+    border-radius: 50%;
+    background: #2f81f7;
+    cursor: pointer;
+  }
+}

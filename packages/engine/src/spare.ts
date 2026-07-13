@@ -36,15 +36,21 @@ export async function spareSolid(
 
   const box = boundingBox(part);
   const partTopZ = box.max[2];
-  const cx = (box.min[0] + box.max[0]) / 2;
-  const cy = (box.min[1] + box.max[1]) / 2;
+
+  // Sit the channel over the part's SUMMIT, not over the centre of its bounding
+  // box. Those coincide for an upright cup and diverge completely for anything
+  // else: a mug parts through its handle, so the pipeline lays it on its side,
+  // and directly above the bbox centre there is nothing but air. A channel dropped
+  // there never meets the part, and you get a mold with a pour hole that dead-ends
+  // and a cavity sealed inside solid plaster -- which looks perfect until it is
+  // printed, poured, and cured.
+  const [cx, cy] = summit(part, partTopZ, box.max[2] - box.min[2]);
 
   const r = opts.diameter / 2;
 
-  // Start the channel *below* the part's highest point. Beginning exactly at the
-  // surface leaves the two solids touching on a single tangent plane, which a
-  // boolean is entitled to treat as not overlapping at all -- and then the pour
-  // channel dead-ends in plaster with the cavity sealed behind it.
+  // Start the channel *below* the surface. Beginning exactly at it leaves the two
+  // solids touching on a single tangent plane, which a boolean is entitled to call
+  // no overlap at all.
   const overlap = Math.max(1, r * 0.25);
   const baseZ = partTopZ - overlap;
 
@@ -67,4 +73,35 @@ export async function spareSolid(
   channel.delete();
   basin.delete();
   return combined;
+}
+
+/**
+ * Where the part is highest, in plan view.
+ *
+ * Not the single topmost vertex -- that is one facet's corner, and on a curved
+ * summit it wanders with the tessellation. Instead, average the vertices within a
+ * thin band below the top, which lands the channel on the middle of the high
+ * region and stays put when the mesh is re-triangulated.
+ */
+function summit(part: MeshData, topZ: number, height: number): [number, number] {
+  const band = Math.max(height * 0.02, 1e-6);
+  const p = part.positions;
+
+  let sx = 0;
+  let sy = 0;
+  let n = 0;
+
+  for (let i = 0; i < p.length; i += 3) {
+    if (p[i + 2]! >= topZ - band) {
+      sx += p[i]!;
+      sy += p[i + 1]!;
+      n++;
+    }
+  }
+
+  if (n === 0) {
+    const box = boundingBox(part);
+    return [(box.min[0] + box.max[0]) / 2, (box.min[1] + box.max[1]) / 2];
+  }
+  return [sx / n, sy / n];
 }

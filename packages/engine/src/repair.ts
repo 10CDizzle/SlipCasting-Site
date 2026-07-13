@@ -390,7 +390,7 @@ export async function remesh(data: MeshData, resolution: number): Promise<MeshDa
     max: [box.max[0] + pad, box.max[1] + pad, box.max[2] + pad] as [number, number, number],
   };
 
-  const target = new THREE.Vector3();
+  const target = { point: new THREE.Vector3(), distance: 0, faceIndex: 0 };
   const point = new THREE.Vector3();
   const ray = new THREE.Ray();
 
@@ -424,7 +424,7 @@ export async function remesh(data: MeshData, resolution: number): Promise<MeshDa
     point.set(p[0], p[1], p[2]);
     const hit = bvh.closestPointToPoint(point, target);
     const distance = hit ? hit.distance : Infinity;
-    // Manifold's convention: positive inside the solid.
+    // Manifold's convention for a level set: positive inside the solid.
     return inside(point) ? distance : -distance;
   };
 

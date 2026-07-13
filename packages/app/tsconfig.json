@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "types": ["vite/client"],
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    // Vite bundles this; explicit .ts/.tsx specifiers resolve fine and keep the
+    // imports honest about what is actually on disk.
+    "allowImportingTsExtensions": true
+  },
+  // The engine's ambient module declarations (occt-import-js ships no types) must
+  // be in this program too, since the app compiles the engine from source.
+  "include": ["src/**/*", "e2e/**/*", "vite.config.ts", "../engine/src/**/*.d.ts"]
+}
