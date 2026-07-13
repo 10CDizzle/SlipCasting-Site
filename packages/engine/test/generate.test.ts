@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { unzipSync, strFromU8 } from 'fflate';
 import { bundle, generate } from '../src/generate.js';
 import { plasterMix, slipEstimate, checkBed, PRINT_BEDS } from '../src/report.js';
-import { cup, explodeToSoup, hollowSphere } from '../src/fixtures.js';
+import { cup, explodeToSoup, hollowSphere, punchHoles } from '../src/fixtures.js';
 import { parseSTL } from '../src/io.js';
 import { isClosed, volume } from '../src/mesh.js';
 import { repair } from '../src/repair.js';
@@ -121,5 +121,21 @@ describe('generate', () => {
     const result = await generate(cup(), params({ minDraft: 15 }));
     expect(result.warnings.join(' ')).toMatch(/draft/i);
     expect(result.bodies.length).toBeGreaterThan(0);
+  });
+
+  it('does not cry wolf about the welding every STL needs', async () => {
+    // Every STL is unshared triangle soup, so a perfectly healthy file always reports
+    // thousands of vertices welded. Showing that as a warning puts a scary banner on
+    // a good part and teaches people to ignore warnings -- which is the last habit
+    // you want when a real one finally appears.
+    const result = await generate(explodeToSoup(cup()), params());
+
+    expect(result.repair.verticesWelded).toBeGreaterThan(0); // it did happen...
+    expect(result.warnings.join(' ')).not.toMatch(/welded/i); // ...and it is not news
+  });
+
+  it('still speaks up when the repair was not routine', async () => {
+    const result = await generate(punchHoles(cup(), 3), params());
+    expect(result.warnings.join(' ')).toMatch(/hole|open edge/i);
   });
 });

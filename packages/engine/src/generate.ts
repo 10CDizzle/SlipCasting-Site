@@ -2,7 +2,7 @@
  * The one call that takes a file and gives back everything a user needs.
  * The CLI, the Web Worker, and the tests all come through here.
  */
-import { repair, type RepairReport } from './repair.js';
+import { repair, type RepairReport, type RepairTier } from './repair.js';
 import { buildMold, type MoldGeometry } from './mold.js';
 import { buildShells } from './shells.js';
 import { buildPositive } from './positive.js';
@@ -71,7 +71,17 @@ export async function generate(
     ...printable,
   ];
 
-  const warnings: string[] = [...healed.report.messages];
+  // Repair chatter is only worth a warning if something surprising happened.
+  //
+  // EVERY STL welds -- the format stores unshared triangle corners, so a clean file
+  // routinely reports thousands of duplicate vertices fused. Surfacing that as a
+  // warning puts a scary banner on a perfectly good part and teaches people to
+  // ignore warnings, which is precisely the habit you do not want when a real one
+  // shows up. The full account stays in the repair report and the instructions.
+  const routine: RepairTier[] = ['clean', 'welded'];
+  const warnings: string[] = routine.includes(healed.report.tier)
+    ? []
+    : [...healed.report.messages];
   if (mold.plan.analysis.area.shallow > 0) {
     const pct = (
       (mold.plan.analysis.area.shallow /

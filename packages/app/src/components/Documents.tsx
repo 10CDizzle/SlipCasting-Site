@@ -9,7 +9,6 @@
  * you can drop a proprietary part file into this tool without it going anywhere.
  */
 import { useEffect, useState } from 'react';
-import { fixtures, toSTL } from '@slipcast/engine';
 import {
   deleteForever,
   listDocuments,
@@ -18,20 +17,10 @@ import {
   trashDocument,
   type DocumentRecord,
 } from '../state/db.ts';
+import { openSample, SAMPLES, type SampleName } from '../state/samples.ts';
 import { useStore } from '../state/store.ts';
 
 type Filter = 'recent' | 'samples' | 'trash';
-
-type SampleName = 'cup' | 'mug' | 'torus' | 'sealed';
-
-const SAMPLES: Record<SampleName, () => Promise<import('@slipcast/engine').MeshData>> = {
-  cup: async () => fixtures.cup(),
-  mug: () => fixtures.handledMug(),
-  torus: async () => fixtures.torus(),
-  // Deliberately impossible. A sealed internal void cannot be reached from any
-  // direction, and the only honest thing the tool can do is say so.
-  sealed: () => fixtures.hollowSphere(),
-};
 
 export function Documents({ onOpen }: { onOpen: () => void }) {
   const [docs, setDocs] = useState<DocumentRecord[]>([]);
@@ -51,13 +40,9 @@ export function Documents({ onOpen }: { onOpen: () => void }) {
     onOpen();
   };
 
-  const openSample = async (name: SampleName) => {
-    // A sample is a real STL, generated on the spot and pushed through the same
-    // import path as any other file. Whatever breaks for a sample breaks for a
-    // real model too -- there is no privileged route through this app.
-    const mesh = await SAMPLES[name]();
-    const bytes = toSTL(mesh);
-    await open(new File([bytes as BlobPart], `${name}.stl`, { type: 'model/stl' }));
+  const launchSample = async (name: SampleName) => {
+    await openSample(name);
+    onOpen();
   };
 
   const visible = docs
@@ -140,30 +125,15 @@ export function Documents({ onOpen }: { onOpen: () => void }) {
 
           {filter === 'samples' ? (
             <div className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-3">
-              <SampleCard
-                title="Tapered cup"
-                blurb="The happy path. Parts along its own axis, needs no split."
-                onClick={() => void openSample('cup')}
-                testId="sample-cup"
-              />
-              <SampleCard
-                title="Handled mug"
-                blurb="Un-moldable along its axis. Watch it find the seam through the handle instead — where a potter would put it."
-                onClick={() => void openSample('mug')}
-                testId="sample-mug"
-              />
-              <SampleCard
-                title="Torus"
-                blurb="Parts cleanly at its equator, and not at all across its hole."
-                onClick={() => void openSample('torus')}
-                testId="sample-torus"
-              />
-              <SampleCard
-                title="Sealed void"
-                blurb="Impossible on purpose. Nothing can mold an enclosed cavity, and the tool will refuse rather than hand you a file that looks right."
-                onClick={() => void openSample('sealed')}
-                testId="sample-sealed"
-              />
+              {(Object.keys(SAMPLES) as SampleName[]).map((name) => (
+                <SampleCard
+                  key={name}
+                  title={SAMPLES[name].title}
+                  blurb={SAMPLES[name].blurb}
+                  onClick={() => void launchSample(name)}
+                  testId={`sample-${name}`}
+                />
+              ))}
             </div>
           ) : visible.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-2 text-center">

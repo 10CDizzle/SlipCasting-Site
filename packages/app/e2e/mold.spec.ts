@@ -10,7 +10,19 @@ import { test, expect, type Page } from '@playwright/test';
 
 type Sample = 'cup' | 'mug' | 'torus' | 'sealed';
 
+/**
+ * A fresh browser auto-opens a sample on its very first visit, which would race
+ * every test that wants to start from the dashboard. Marking the visit as already
+ * made puts us in the returning-user state.
+ */
+async function asReturningVisitor(page: Page) {
+  await page.addInitScript(() => {
+    window.localStorage.setItem('slipcast.seen', '1');
+  });
+}
+
 async function openSample(page: Page, sample: Sample, expectMold = true) {
+  await asReturningVisitor(page);
   await page.goto('/');
   await page.getByTestId('filter-samples').click();
   await page.getByTestId(`sample-${sample}`).click();
@@ -20,6 +32,33 @@ async function openSample(page: Page, sample: Sample, expectMold = true) {
     await expect(page.getByTestId('mass-properties')).toBeVisible({ timeout: 60_000 });
   }
 }
+
+test('a first-time visitor lands on a finished mold, not an empty page', async ({ page }) => {
+  // Nothing in localStorage, nothing in IndexedDB: a genuinely cold arrival. An
+  // empty dashboard tells such a person nothing about what this tool does; a
+  // finished mold tells them everything in one screen.
+  await page.goto('/');
+
+  await expect(page.getByTestId('viewport')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId('mass-properties')).toContainText('Plaster', {
+    timeout: 60_000,
+  });
+  await expect(page.getByTestId('parts-list')).toContainText('Print These');
+
+  // And there is a way out of it. A workspace you cannot leave is a room with no door.
+  await page.getByTestId('back-to-documents').click();
+  await expect(page.getByTestId('search')).toBeVisible();
+});
+
+test('a returning visitor is not hijacked by the demo', async ({ page }) => {
+  // Someone who has been here before should land on their own documents. Reopening
+  // a sample over the top of their work every time would be obnoxious.
+  await asReturningVisitor(page);
+  await page.goto('/');
+
+  await expect(page.getByTestId('search')).toBeVisible();
+  await expect(page.getByTestId('viewport')).toBeHidden();
+});
 
 test('generates a mold from a sample cup and reports a plaster recipe', async ({ page }) => {
   await openSample(page, 'cup');

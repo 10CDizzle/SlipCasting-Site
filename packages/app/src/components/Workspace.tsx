@@ -23,7 +23,7 @@ const TABS: Array<{ id: 'part-studio' | 'mold' | 'instructions'; label: string }
   { id: 'instructions', label: 'Instructions' },
 ];
 
-export function Workspace() {
+export function Workspace({ onExit }: { onExit: () => void }) {
   const tab = useStore((s) => s.tab);
   const setTab = useStore((s) => s.setTab);
   const features = useStore((s) => s.features);
@@ -42,7 +42,7 @@ export function Workspace() {
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-shell-900 text-ink-100">
-      <Toolbar />
+      <Toolbar onExit={onExit} />
 
       <div className="relative flex min-h-0 flex-1">
         {/* Left: Feature List over Parts List */}

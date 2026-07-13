@@ -23,6 +23,12 @@ async function shot(page: Page, name: string) {
 }
 
 test('capture', async ({ page }) => {
+  // A cold browser auto-opens a sample, which would skip straight past the page we
+  // want to photograph first. Present as a returning visitor.
+  await page.addInitScript(() => {
+    window.localStorage.setItem('slipcast.seen', '1');
+  });
+
   // 1. The Documents dashboard.
   await page.goto('/');
   await page.getByTestId('filter-samples').click();

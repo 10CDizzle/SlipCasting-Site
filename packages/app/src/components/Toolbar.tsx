@@ -9,7 +9,7 @@ import { useRef, useState } from 'react';
 import { useStore } from '../state/store.ts';
 import { VersionGraphPanel } from './VersionGraph.tsx';
 
-export function Toolbar() {
+export function Toolbar({ onExit }: { onExit: () => void }) {
   const tab = useStore((s) => s.tab);
   const docName = useStore((s) => s.docName);
   const display = useStore((s) => s.display);
@@ -41,6 +41,20 @@ export function Toolbar() {
 
   return (
     <div className="relative flex h-11 shrink-0 items-center gap-1 border-b border-shell-600 bg-shell-800 px-2">
+      {/* Back to the Documents page. Without this, a workspace opened on first boot
+          is a room with no door. */}
+      <button
+        onClick={onExit}
+        className="rounded p-1.5 text-ink-500 transition hover:bg-shell-700 hover:text-ink-100"
+        title="Documents"
+        aria-label="Back to documents"
+        data-testid="back-to-documents"
+      >
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+        </svg>
+      </button>
+
       <button
         onClick={() => setShowVersions((v) => !v)}
         className="flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium text-ink-100 hover:bg-shell-700"
