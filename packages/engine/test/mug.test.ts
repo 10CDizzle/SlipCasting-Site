@@ -87,7 +87,7 @@ describe('placing the spare by hand', () => {
     // is still over the part -- but its surface there is LOWER than the summit. The
     // channel has to start from the surface beneath the chosen point, not from the
     // part's global maximum, or it hangs in mid-air connected to nothing.
-    const offset = await generate(cup(), { ...DEFAULT_PARAMS, sparePosition: [20, 0] });
+    const offset = await generate(cup(), { ...DEFAULT_PARAMS, sparePosition: [20, 0, 0] });
 
     // It built, which means the spare-reaches-the-part guard was satisfied.
     expect(offset.mold.volumes.cavity).toBeGreaterThan(offset.mold.volumes.part);
@@ -100,7 +100,7 @@ describe('placing the spare by hand', () => {
     // Ask instead where the hole IS -- above the part, the only cavity left is the
     // spare, so its centre is the spare's centre.
     const auto = await generate(cup(), DEFAULT_PARAMS);
-    const picked = await generate(cup(), { ...DEFAULT_PARAMS, sparePosition: [22, 0] });
+    const picked = await generate(cup(), { ...DEFAULT_PARAMS, sparePosition: [22, 0, 0] });
 
     expect(spareCentreX(auto)).toBeCloseTo(0, 0);
     expect(spareCentreX(picked)).toBeCloseTo(22, 0);
@@ -110,7 +110,7 @@ describe('placing the spare by hand', () => {
     // Clicking into thin air must not silently produce a mold whose pour hole ends
     // in solid plaster.
     await expect(
-      generate(cup(), { ...DEFAULT_PARAMS, sparePosition: [500, 500] }),
+      generate(cup(), { ...DEFAULT_PARAMS, sparePosition: [500, 500, 0] }),
     ).rejects.toThrow(/sit over the part/i);
   });
 

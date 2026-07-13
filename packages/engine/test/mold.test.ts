@@ -125,8 +125,8 @@ describe('buildMold', () => {
   });
 
   it('cuts more plaster away for a bigger part', async () => {
-    const small = await buildMold(sphere(15), params({ split: false }));
-    const large = await buildMold(sphere(25), params({ split: false }));
+    const small = await buildMold(sphere(15), params({ split: true }));
+    const large = await buildMold(sphere(25), params({ split: true }));
     expect(large.volumes.cavity).toBeGreaterThan(small.volumes.cavity);
   });
 });

@@ -66,17 +66,65 @@ why it is the reciprocal and not `1 + shrinkage`.
 Everything downstream is built from the scaled master, so the mold, the block, the
 keys and the spare are all in the same enlarged world.
 
-## 4. Pull direction (`analysis.ts`)
+## 4. Pull direction and parting plane (`analysis.ts`)
 
-**This is the part that makes the tool worth using.**
+**This is the part that makes the tool worth using, and it is the part I got wrong
+twice.** Both mistakes are worth recording, because both produced molds that *looked*
+fine and could never have opened.
 
-A mold half pulled along **+d** can be removed if and only if every surface it
-touches is visible from **+d**. So a face is an **undercut** when it is occluded
-from **+d** *and* from **−d** — no half of a two-part mold could ever free it, and
-moving the parting plane cannot help.
+### The criterion
 
-That is *global accessibility*, and it is not the same as the sign of a face's
-normal. Judging by normals gets a donut and a mug both backwards.
+A mold half is only removable if every surface it touches is reachable along the
+direction it travels. So there are **two** conditions on each face, and you need both:
+
+- **Local.** The face's normal must not point *against* the pull. Mold material resting
+  on a face that leans away from you cannot be dragged toward you — it would have to
+  pass through the part. This is pure arithmetic: `n · d ≥ 0`.
+- **Global.** Nothing else may be in the way. This is a ray cast.
+
+### Mistake 1: I only checked reachability from *either* pole
+
+I asked "can this face see `+d` **or** `−d`?" That is necessary but **not sufficient**.
+A two-part mold also needs the parting *plane* to **separate** the two sets:
+
+> Every face **above** the plane is touched by the upper half and must be reachable
+> from **+d**. Every face **below** is touched by the lower half and must be reachable
+> from **−d**.
+
+Without that, each half can end up clamped around geometry it can never release. The
+mold passes every check and physically will not open.
+
+On a mug this was not subtle. The seam settled ~26° off the plane of symmetry, which
+puts the **whole handle inside one half with its hole trapped**. The tool reported it
+green. The parting plane is now chosen by sweeping it and minimising the surface the
+mold would trap, and the pull-direction search scores each axis *on its best plane* —
+so a mug now parts exactly on its symmetry plane, bisecting the handle, which is where
+a pottery puts the seam.
+
+### Mistake 2: the graze tolerance ate the local condition
+
+I relied on rays alone and skipped the local test. Rays from a cup's flat top, fired
+downward, re-enter the solid **immediately** — and "immediately" is inside the graze
+tolerance that exists to swallow boolean slivers. So the tolerance ate the evidence,
+and a cup's lid read as reachable from *underneath*, which is nonsense. Local first,
+then the ray.
+
+### Search
+
+Sweep ~128 directions over a hemisphere, **seeded with the part's own principal axes**.
+That seeding matters: a fixed sample grid never contains the exact axis of a part that
+arrived rotated, and "nearly the axis" is not good enough, because a pull a few degrees
+off a surface of revolution turns its walls into undercuts. Nobody exports their model
+conveniently aligned.
+
+Ranked by, in strict order:
+
+1. **Undercut area** at the direction's best parting plane. Disqualifying.
+2. **Where the seam lands** — prefer an extreme, which gives a one-piece mold.
+3. **Shallow draft** — weighted *lightly*. Heavy, it starts *choosing the parting axis*,
+   tilting the pull off a part's natural axis purely to give its flat faces some draft.
+   That trades a clean seam on the plane of symmetry for a diagonal one.
+4. **Block volume** — how much plaster it burns.
 
 The search sweeps ~128 directions over a hemisphere (Fibonacci-distributed, plus the
 principal axes) and ranks them by, in strict order:
@@ -109,31 +157,49 @@ triangles whose rays graze immediately-adjacent geometry. The cutoff is physical
 not merely numerical: plaster cannot form a wall that thin, so a gap smaller than
 that is not a mold feature under any circumstances.
 
-## 5. Parting plane
+## 5. Block (`block.ts`)
 
-The height along the pull axis where the part's silhouette is widest. Cut anywhere
-else and the mold half above the cut has to travel past a wider part of the model to
-escape — an undercut created purely by a bad parting plane.
+A bounding block plus the plaster wall thickness, or a conformal hull offset that hugs
+the part and saves plaster. The outer walls get a couple of degrees of draft so a
+printed tray lifts off the set plaster instead of suctioning onto it.
 
-## 6. Block (`block.ts`)
+**A one-piece mold is cut off at the parting plane.** That plane is its open *mouth*,
+and the part lifts straight out of what is left. Building the block over the top of the
+part instead entombs it — a sphere cannot be extracted from a closed lump of plaster,
+and neither can a cup. The engine used to do exactly that and call it moldable, because
+it never asked whether the mold could get out of its own way.
 
-A bounding block plus the plaster wall thickness, or a conformal hull offset that
-hugs the part and saves plaster. The outer walls get a couple of degrees of draft so
-a printed tray lifts off the set plaster instead of suctioning onto it.
+## 6. The pour axis — *not* the pull axis (`spare.ts`)
 
-## 7. Spare (`spare.ts`)
+**These are two different questions and conflating them is a real mistake.**
 
-The pour channel and its reservoir.
+- The **pull axis** is how the mold *opens*.
+- The **pour axis** is which way is *up* when it stands on the bench being filled.
 
-It sits over the part's **summit**, not the centre of its bounding box. Those
-coincide for an upright cup — which is why the bug hid — and diverge completely for
-anything else. A mug parts through its handle, so the pipeline lays it on its side,
-and directly above the bounding-box centre there is nothing but air. The channel
-never met the part: a mold with a pour hole that dead-ends and a cavity sealed inside
-solid plaster. It would have looked perfect right up until someone printed it,
-poured it, and waited an hour.
+For a plain cup they coincide, and the distinction never surfaces. For a **mug** they
+are perpendicular: the mold opens *sideways* through the handle, but it stands upright
+and is filled *from the rim*. Assume the pour hole belongs at the top of the pull axis
+— as this engine originally did — and you put the spare on the **side of the mug**,
+where slip would run straight back out onto the bench.
 
-The engine now asserts that the spare intersects the part, and refuses if it does not.
+The mold frame therefore carries both axes: pull onto +Z (so the parting plane is
+horizontal and everything downstream can say "above" and "below"), pour into the XZ
+plane (so the channel runs out through a *face* of the block rather than a corner).
+
+The pour axis defaults to the part's own **+Z**, because people model pots standing up.
+
+## 7. Spare placement
+
+The channel comes down the pour axis onto the part. You can click the part to place it;
+otherwise it sits at the part's highest point measured up the pour axis — the rim.
+
+Wherever it goes, the channel starts from the surface **beneath that point**, not from
+the part's global extreme. Those coincide only at the summit. Anywhere else, starting
+from the extreme leaves the channel hanging in mid-air above the chosen spot, connected
+to nothing: a mold with a pour hole that dead-ends and a cavity sealed inside solid
+plaster. It looks perfect right up until someone prints it, pours it, and waits an hour.
+
+The engine asserts that the spare intersects the part, and refuses if it does not.
 
 ## 8. Split (`split.ts`) — and the golden test
 

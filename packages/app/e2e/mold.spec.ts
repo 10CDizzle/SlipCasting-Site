@@ -229,7 +229,7 @@ test('you can place the pour spare by clicking the part', async ({ page }) => {
   await page.getByTestId('feature-spare').click();
 
   // Defaults to the summit, and says so in words rather than coordinates.
-  await expect(page.getByTestId('pick-spare')).toContainText('highest point');
+  await expect(page.getByTestId('pick-spare')).toContainText('rim');
 
   // Arm the field. Onshape's paradigm: it turns blue and waits for a viewport click.
   await page.getByTestId('pick-spare').click();
@@ -248,7 +248,7 @@ test('you can place the pour spare by clicking the part', async ({ page }) => {
 
   // And you can go back to letting it choose.
   await page.getByTestId('reset-spare').click();
-  await expect(page.getByTestId('pick-spare')).toContainText('highest point');
+  await expect(page.getByTestId('pick-spare')).toContainText('rim');
 });
 
 test('escape cancels an armed pick', async ({ page }) => {

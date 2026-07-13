@@ -10,7 +10,14 @@
 import * as THREE from 'three';
 import type { Manifold } from 'manifold-3d';
 import { manifold, Scope } from './wasm.js';
-import { alignToZ, classifyFaces, findPartingPlane, findPullDirections, transformMesh } from './analysis.js';
+import {
+  findPartingPlane,
+  findPullDirections,
+  moldabilityAt,
+  moldFrame,
+  rotateVec,
+  transformMesh,
+} from './analysis.js';
 import { moldBlock } from './block.js';
 import { spareSolid } from './spare.js';
 import { registrationKeys } from './keys.js';
@@ -19,16 +26,20 @@ import { boundingBox, fromManifold, toManifoldMesh, volume } from './mesh.js';
 import type { DraftAnalysis, MeshData, MoldParams, Vec3 } from './types.js';
 
 export interface MoldPlan {
-  /** The part, scaled for shrinkage and rotated so the pull axis is +Z. */
+  /** The part, scaled for shrinkage and rotated into the mold frame. */
   master: MeshData;
-  /** The pull axis, in the ORIGINAL frame -- what the UI draws. */
+  /** The axis the mold OPENS along, in the original frame. */
   pullDirection: Vec3;
-  /** Height of the parting plane along +Z, in the aligned frame. */
+  /** The axis the mold is FILLED along -- which way is up on the bench. Original frame. */
+  pourDirection: Vec3;
+  /** The pour axis expressed in the mold frame. Always in the XZ plane. */
+  pourInFrame: Vec3;
+  /** Height of the parting plane along +Z, in the mold frame. */
   partingZ: number;
   analysis: DraftAnalysis;
   /** Where each key landed on the parting face. */
   keyPositions: Array<[number, number]>;
-  /** Rotation from the original frame into the aligned one. */
+  /** Rotation from the original frame into the mold frame. */
   alignment: THREE.Matrix4;
 }
 
@@ -73,7 +84,7 @@ export function scaleMesh(data: MeshData, factor: number): MeshData {
   return { positions, indices: new Uint32Array(data.indices) };
 }
 
-/** Work out the pull axis, the parting height, and the scaled/aligned master. */
+/** Work out both axes, the parting height, and the scaled master in the mold frame. */
 export function planMold(
   part: MeshData,
   params: MoldParams,
@@ -84,13 +95,38 @@ export function planMold(
   const pullDirection =
     pullOverride ?? findPullDirections(scaled, { minDraft: params.minDraft })[0]!.direction;
 
-  const alignment = alignToZ(pullDirection);
+  // Which way is up on the bench. People model pots standing upright, so the part's
+  // own +Z is the right default -- and it is a completely separate question from
+  // which way the mold comes apart.
+  const pourDirection: Vec3 = params.pourDirection ?? [0, 0, 1];
+
+  const alignment = moldFrame(pullDirection, pourDirection);
   const master = transformMesh(scaled, alignment);
+  const pourInFrame = rotateVec(pourDirection, alignment);
 
-  const analysis = classifyFaces(master, [0, 0, 1], params.minDraft);
-  const partingZ = params.split ? findPartingPlane(master, [0, 0, 1]) : boundingBox(master).max[2];
+  // The parting plane is chosen the same way whether or not the mold is split. For a
+  // one-piece mold it is the mold's open MOUTH -- the block is cut off there, and the
+  // part lifts straight out. Putting it at the top of the part instead would seal the
+  // part inside a closed box, which is not a mold, it is a paperweight.
+  const partingZ = findPartingPlane(master, [0, 0, 1], {
+    minDraft: params.minDraft,
+    split: params.split,
+  });
 
-  return { master, pullDirection, partingZ, analysis, keyPositions: [], alignment };
+  // Judged against the plane we are actually going to cut, not merely against the
+  // poles of the pull axis.
+  const analysis = moldabilityAt(master, [0, 0, 1], partingZ, params.minDraft, params.split);
+
+  return {
+    master,
+    pullDirection,
+    pourDirection,
+    pourInFrame,
+    partingZ,
+    analysis,
+    keyPositions: [],
+    alignment,
+  };
 }
 
 /**
@@ -118,18 +154,26 @@ export async function buildMold(part: MeshData, params: MoldParams, pullOverride
   try {
     const master = scope.keep(M.ofMesh(await toManifoldMesh(plan.master)));
 
-    const block = scope.keep(await moldBlock(master, plan.master, {
+    let block = scope.keep(await moldBlock(master, plan.master, {
       wallThickness: params.wallThickness,
       style: params.blockStyle,
       outerDraft: params.outerDraft,
     }));
 
+    if (!params.split) {
+      // A one-piece mold is OPEN at the parting plane. Trim the block there, or the
+      // part is sealed under a plaster lid and can never come out -- which is exactly
+      // what the engine used to build, and used to call moldable.
+      block = scope.keep(block.trimByPlane([0, 0, -1], -plan.partingZ));
+    }
+
     const blockBox = block.boundingBox();
 
     const spare = scope.keep(
-      await spareSolid(plan.master, blockBox.max[2], {
+      await spareSolid(plan.master, blockBox, {
         diameter: params.spareDiameter,
         height: params.spareHeight,
+        pour: plan.pourInFrame,
         position: params.sparePosition,
       }),
     );

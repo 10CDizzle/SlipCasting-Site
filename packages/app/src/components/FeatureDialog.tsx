@@ -244,11 +244,53 @@ function SparePlacement({ feature }: { feature: Feature }) {
   const cancelPicking = useStore((s) => s.cancelPicking);
   const updateFeature = useStore((s) => s.updateFeature);
 
-  const position = feature.params.sparePosition as [number, number] | null | undefined;
+  const position = feature.params.sparePosition as [number, number, number] | null | undefined;
+  const pour = feature.params.pourDirection as [number, number, number] | null | undefined;
   const armed = picking === 'spare';
 
+  const POUR_AXES: Array<{ id: string; label: string; value: [number, number, number] | null }> = [
+    { id: 'auto', label: "The part's own up (+Z)", value: null },
+    { id: 'x', label: '+X', value: [1, 0, 0] },
+    { id: 'y', label: '+Y', value: [0, 1, 0] },
+    { id: 'z', label: '+Z', value: [0, 0, 1] },
+  ];
+
+  const current = pour
+    ? (POUR_AXES.find((a) => a.value && a.value.every((v, i) => v === pour[i]))?.id ?? 'auto')
+    : 'auto';
+
   return (
-    <div>
+    <div className="space-y-2.5">
+      {/*
+        Which way is UP when the mold stands on the bench being filled. This is NOT
+        the axis the mold opens along, and conflating the two is a real mistake: a
+        mug's mold opens sideways through the handle but is filled from the rim.
+      */}
+      <label className="block">
+        <span className="mb-1 block text-[11px] text-ink-300">Fill from</span>
+        <select
+          value={current}
+          onChange={(e) => {
+            const axis = POUR_AXES.find((a) => a.id === e.target.value);
+            updateFeature(feature.id, { pourDirection: axis?.value ?? null });
+          }}
+          data-testid="field-pourDirection"
+          className="w-full rounded border border-shell-600 bg-shell-900 px-2 py-1 text-xs text-ink-100 outline-none focus:border-pick"
+        >
+          {POUR_AXES.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.label}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-[10px] leading-snug text-ink-500">
+          Which way is up when the mold stands on the bench. Not the same as the axis it
+          opens along — a mug&apos;s mold opens sideways through the handle but is filled
+          from the rim. Models are drawn standing up, so the default is almost always right.
+        </p>
+      </label>
+
+      <div>
       <span className="mb-1 block text-[11px] text-ink-300">Position</span>
 
       <button
@@ -271,10 +313,10 @@ function SparePlacement({ feature }: { feature: Feature }) {
           <span className="animate-pulse">Click the part…</span>
         ) : position ? (
           <span className="font-mono tabular-nums">
-            {position[0].toFixed(1)}, {position[1].toFixed(1)} mm
+            {position.map((v) => v.toFixed(0)).join(', ')} mm
           </span>
         ) : (
-          <span>Over the highest point</span>
+          <span>The rim (highest point)</span>
         )}
       </button>
 
@@ -289,10 +331,10 @@ function SparePlacement({ feature }: { feature: Feature }) {
       )}
 
       <p className="mt-1 text-[10px] leading-snug text-ink-500">
-        Where the slip goes in. The default sits on the part&apos;s highest point, which
-        is right for a cup and merely plausible for anything else — a teapot wants it on
-        the foot, not on the tip of the spout.
+        Where the slip goes in. The default is the highest point measured up the fill
+        axis — the rim of a cup or a mug. A teapot might want it on the foot instead.
       </p>
+      </div>
     </div>
   );
 }

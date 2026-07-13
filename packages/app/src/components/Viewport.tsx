@@ -210,44 +210,35 @@ function SectionCaps({
   );
 }
 
-/** A ring and a stem marking where the pour channel will meet the part. */
+/** A ring marking where the pour channel will meet the part. */
 function SpareMarker({
   position,
   bodies,
 }: {
-  position: [number, number];
+  position: [number, number, number];
   bodies: LoadedBody[];
 }) {
-  const top = useMemo(() => {
-    const box = new THREE.Box3();
-    for (const b of bodies) {
-      b.geometry.computeBoundingBox();
-      if (b.geometry.boundingBox) box.union(b.geometry.boundingBox);
-    }
-    return box.isEmpty() ? 0 : box.max.z;
-  }, [bodies]);
-
   const size = useMemo(() => {
     const box = new THREE.Box3();
     for (const b of bodies) {
+      b.geometry.computeBoundingBox();
       if (b.geometry.boundingBox) box.union(b.geometry.boundingBox);
     }
     const s = box.getSize(new THREE.Vector3());
     return Math.max(s.x, s.y, s.z) || 50;
   }, [bodies]);
 
-  const r = size * 0.06;
+  const r = size * 0.055;
 
   return (
-    <group position={[position[0], position[1], top]}>
-      <mesh rotation={[0, 0, 0]}>
-        <torusGeometry args={[r, r * 0.12, 8, 32]} />
-        <meshBasicMaterial color="#2f81f7" depthTest={false} transparent opacity={0.9} />
+    <group position={position}>
+      <mesh>
+        <sphereGeometry args={[r * 0.35, 12, 12]} />
+        <meshBasicMaterial color="#2f81f7" depthTest={false} transparent opacity={0.95} />
       </mesh>
-      {/* three's cylinder runs along Y; this scene is Z-up, so stand it on end. */}
-      <mesh position={[0, 0, size * 0.09]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[r * 0.08, r * 0.08, size * 0.18, 8]} />
-        <meshBasicMaterial color="#2f81f7" depthTest={false} transparent opacity={0.65} />
+      <mesh>
+        <torusGeometry args={[r, r * 0.12, 8, 32]} />
+        <meshBasicMaterial color="#2f81f7" depthTest={false} transparent opacity={0.8} />
       </mesh>
     </group>
   );
@@ -313,7 +304,7 @@ function Scene() {
    */
   const handlePick = (id: string, additive: boolean, point: THREE.Vector3) => {
     if (picking === 'spare') {
-      pickedPoint(point.x, point.y);
+      pickedPoint(point.x, point.y, point.z);
       return;
     }
     select(id, additive);
@@ -322,7 +313,7 @@ function Scene() {
   // Where the pour spare currently sits, so it is not an invisible setting.
   const sparePos = useMemo(() => {
     const spare = features.find((f) => f.type === 'spare');
-    const p = spare?.params.sparePosition as [number, number] | null | undefined;
+    const p = spare?.params.sparePosition as [number, number, number] | null | undefined;
     return p ?? null;
   }, [features]);
 

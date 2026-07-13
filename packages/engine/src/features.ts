@@ -78,6 +78,7 @@ export function defaultFeatures(fileId: string, fileName: string): Feature[] {
         spareDiameter: p.spareDiameter,
         spareHeight: p.spareHeight,
         sparePosition: p.sparePosition,
+        pourDirection: p.pourDirection,
       },
     },
     { id: 'f6', type: 'split', name: 'Split', params: { split: p.split } },

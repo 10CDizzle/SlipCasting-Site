@@ -54,6 +54,28 @@ test('placing the pour spare by clicking the part', async ({ page }) => {
   await shot(page, 'spare-placed');
 });
 
+test('the mug mold', async ({ page }) => {
+  await page.addInitScript(() => window.localStorage.setItem('slipcast.seen', '1'));
+  await page.goto('/');
+  await page.getByTestId('filter-samples').click();
+  await page.getByTestId('sample-mug').click();
+  await expect(page.getByTestId('mass-properties')).toBeVisible({ timeout: 60_000 });
+
+  await page.getByTestId('tab-mold').click();
+  await page.getByTestId('explode-slider').fill('0.75');
+  await page.waitForTimeout(1500);
+  await shot(page, 'mug-mold');
+
+  // And the cavity, sectioned open.
+  await page.getByTestId('part-plaster-lower').click({ button: 'right' });
+  await page.getByTestId('explode-slider').fill('0');
+  await page.getByTestId('toggle-section').click();
+  await page.getByTestId('section-axis').selectOption('z');
+  await page.getByTestId('section-slider').fill('0.5');
+  await page.waitForTimeout(1500);
+  await shot(page, 'mug-cavity');
+});
+
 test('sectioning the mold to see the cavity', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByTestId('mass-properties')).toBeVisible({ timeout: 60_000 });

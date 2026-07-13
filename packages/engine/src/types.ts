@@ -84,13 +84,29 @@ export interface MoldParams {
   spareDiameter: number;
   spareHeight: number;
   /**
-   * Where the pour channel meets the part, in the pull frame (x, y).
+   * Where the pour channel meets the part: a point on the model, in the mold frame.
    *
-   * Null means "over the summit", which is right for an upright cup and merely
-   * plausible for anything else. A teapot wants the spare on its foot, not on the
-   * tip of its spout.
+   * A point, not a pair of coordinates, because a point is what a click gives you.
+   * Only its component across the pour axis is used -- the channel then comes down
+   * that axis onto the part.
+   *
+   * Null means "wherever the part is highest, measured up the POUR axis", which is
+   * the rim of a cup or a mug. A teapot might want it on the foot instead.
    */
-  sparePosition: [number, number] | null;
+  sparePosition: Vec3 | null;
+  /**
+   * Which way is UP when the mold stands on the bench being filled.
+   *
+   * This is NOT the pull axis, and conflating the two is a mistake with real
+   * consequences. A mug's mold OPENS horizontally -- the halves come apart through
+   * the handle -- but it STANDS UPRIGHT and is filled from the rim. Assume the pour
+   * hole belongs at the top of the pull axis and you put the spare on the side of
+   * the mug, where slip would simply run out onto the floor.
+   *
+   * Null means "use the part's own +Z", which is right almost always, because people
+   * model pots standing up.
+   */
+  pourDirection: Vec3 | null;
   /** Printed shell wall thickness (mode 'shells' only), mm. */
   shellWall: number;
   mode: OutputMode;
@@ -110,6 +126,7 @@ export const DEFAULT_PARAMS: MoldParams = {
   spareDiameter: 30,
   spareHeight: 40,
   sparePosition: null,
+  pourDirection: null,
   shellWall: 3,
   mode: 'shells',
 };

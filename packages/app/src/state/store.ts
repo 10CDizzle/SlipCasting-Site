@@ -75,8 +75,8 @@ export interface State {
   setEditing: (id: string | null) => void;
   /** Arm a field to be filled by the next click in the viewport. */
   startPicking: (what: 'spare') => void;
-  /** A click landed on the model at (x, y) in the pull frame. */
-  pickedPoint: (x: number, y: number) => void;
+  /** A click landed on the model, at a point in the mold frame. */
+  pickedPoint: (x: number, y: number, z: number) => void;
   cancelPicking: () => void;
 
   select: (id: string, additive: boolean) => void;
@@ -228,7 +228,7 @@ export const useStore = create<State>((set, get) => ({
     set({ picking: what, tab: 'part-studio', explode: 0 });
   },
 
-  pickedPoint(x, y) {
+  pickedPoint(x, y, z) {
     const { picking, features } = get();
     if (picking !== 'spare') return;
 
@@ -236,11 +236,10 @@ export const useStore = create<State>((set, get) => ({
     if (!spare) return;
 
     set({ picking: null });
-    // Rounded: a pour hole placed to the tenth of a micron is false precision, and
-    // it makes the regen cache miss on every imperceptible mouse wobble.
-    get().updateFeature(spare.id, {
-      sparePosition: [Math.round(x * 10) / 10, Math.round(y * 10) / 10],
-    });
+    // Rounded: a pour hole placed to the tenth of a micron is false precision, and it
+    // makes the regen cache miss on every imperceptible mouse wobble.
+    const round = (v: number) => Math.round(v * 10) / 10;
+    get().updateFeature(spare.id, { sparePosition: [round(x), round(y), round(z)] });
   },
 
   cancelPicking() {
