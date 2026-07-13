@@ -8,7 +8,8 @@
     "slipcast": "./src/main.ts"
   },
   "scripts": {
-    "start": "node --experimental-strip-types src/main.ts",
+    "start": "tsx src/main.ts",
+    "fixture": "tsx src/make-fixture.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

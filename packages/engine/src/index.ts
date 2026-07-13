@@ -16,3 +16,6 @@ export * from './exporters.js';
 export * from './io.js';
 export * from './generate.js';
 export * as fixtures from './fixtures.js';
+export * from './features.js';
+export * from './versions.js';
+export * from './regen.js';
