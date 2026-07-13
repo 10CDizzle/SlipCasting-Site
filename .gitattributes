@@ -1,0 +1,7 @@
+# The toolchain runs in Linux containers; keep LF in the repo regardless of host.
+* text=auto eol=lf
+*.png binary
+*.gif binary
+*.stl binary
+*.3mf binary
+*.glb binary
