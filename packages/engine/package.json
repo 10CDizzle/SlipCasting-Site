@@ -17,6 +17,7 @@
   "dependencies": {
     "fflate": "^0.8.2",
     "manifold-3d": "^3.0.1",
+    "occt-import-js": "^0.0.23",
     "three": "^0.171.0",
     "three-mesh-bvh": "^0.8.3"
   },
