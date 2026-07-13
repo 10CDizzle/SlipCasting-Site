@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The geometry is the risky part of this project, so it is tested hardest and
+  # first. A green tick here means the invariants held -- volume is conserved,
+  # every emitted solid is watertight, undercuts are still detected -- not merely
+  # that the code compiled.
+  engine:
+    name: Engine (geometry invariants)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test --workspace @slipcast/engine
+
+  # Drives the real built app in headless Chromium: the same static files Pages
+  # serves. WASM loads, the worker runs, the STLs come out printable.
+  e2e:
+    name: End-to-end (headless browser)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+        working-directory: packages/app
+      - run: npm run e2e --workspace @slipcast/app
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: packages/app/playwright-report/
+          retention-days: 7
+
+  # The CLI is the engine without a browser. If this breaks, so has the worker.
+  cli:
+    name: CLI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Generate a mold from a fixture, headlessly
+        run: |
+          npm run fixture --workspace @slipcast/cli -- cup /tmp/cup.stl
+          npm run start --workspace @slipcast/cli -- /tmp/cup.stl --mode shells -o /tmp/out
+          test -f /tmp/out/slipcast-mold.zip

@@ -9,6 +9,9 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './e2e',
+  // The media capture drives the same flows; it is opt-in so a normal test run
+  // does not spend a minute writing PNGs.
+  testIgnore: process.env.CAPTURE ? [] : ['**/capture-media.spec.ts'],
   fullyParallel: false, // the geometry kernel is single-threaded; racing it just queues
   workers: 1,
   timeout: 120_000,

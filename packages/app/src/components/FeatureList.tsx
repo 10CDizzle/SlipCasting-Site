@@ -90,9 +90,12 @@ export function FeatureList() {
             onDrop={commitDrag}
             onDragEnd={commitDrag}
           />
-          {/* The Rollback Bar lives between rows -- it is a point in history, not a row. */}
+          {/* The Rollback Bar lives between rows -- it is a point in history, not a
+              row. The handle below the LAST feature is the end of history, which is
+              where the bar sits by default: showing it as "rolled back" there would
+              be a lie, and an alarming one. */}
           <RollbackHandle
-            active={rollbackTo === i + 1}
+            active={rollbackTo === i + 1 && i + 1 < features.length}
             onClick={() => setRollback(rollbackTo === i + 1 ? features.length : i + 1)}
           />
         </div>

@@ -55,7 +55,7 @@ function Body({
   showEdges,
   translucent,
   useVertexColors,
-  offset,
+  target,
   onPick,
 }: {
   id: string;
@@ -65,15 +65,24 @@ function Body({
   showEdges: boolean;
   translucent: boolean;
   useVertexColors: boolean;
-  offset: THREE.Vector3;
+  target: THREE.Vector3;
   onPick: (id: string, additive: boolean) => void;
 }) {
   const hasColors = useVertexColors && geometry.hasAttribute('color');
+  const ref = useRef<THREE.Mesh>(null);
+
+  // Ease the piece toward its exploded position by mutating the object directly.
+  // Passing a Vector3 as a `position` prop would not work: r3f copies props into
+  // the object at RENDER time, and nothing here re-renders while the slider moves,
+  // so a mutated prop object is simply never read again.
+  useFrame((_, delta) => {
+    ref.current?.position.lerp(target, Math.min(1, delta * 8));
+  });
 
   return (
     <mesh
+      ref={ref}
       geometry={geometry}
-      position={offset}
       castShadow
       receiveShadow
       onClick={(e: ThreeEvent<MouseEvent>) => {
@@ -120,7 +129,7 @@ function AutoFrame({ bodies }: { bodies: LoadedBody[] }) {
     const center = box.getCenter(new THREE.Vector3());
     const radius = Math.max(size.x, size.y, size.z) || 1;
 
-    camera.position.set(center.x + radius * 1.6, center.y - radius * 1.9, center.z + radius * 1.3);
+    camera.position.set(center.x + radius * 1.9, center.y - radius * 2.2, center.z + radius * 1.5);
     camera.lookAt(center);
     camera.updateProjectionMatrix();
 
@@ -134,20 +143,6 @@ function AutoFrame({ bodies }: { bodies: LoadedBody[] }) {
   return null;
 }
 
-/** Smoothly eases the exploded-view offsets rather than snapping them. */
-function useExplodeOffset(explode: number, direction: [number, number, number], scale: number) {
-  const target = useMemo(
-    () => new THREE.Vector3(...direction).multiplyScalar(explode * scale),
-    [direction, explode, scale],
-  );
-  const current = useRef(new THREE.Vector3());
-
-  useFrame((_, delta) => {
-    current.current.lerp(target, Math.min(1, delta * 8));
-  });
-
-  return current.current;
-}
 
 function Scene() {
   const regen = useStore((s) => s.regen);
@@ -157,6 +152,7 @@ function Scene() {
   const selection = useStore((s) => s.selection);
   const hidden = useStore((s) => s.hidden);
   const isolated = useStore((s) => s.isolated);
+  const tab = useStore((s) => s.tab);
   const select = useStore((s) => s.select);
   const clearSelection = useStore((s) => s.clearSelection);
 
@@ -166,8 +162,9 @@ function Scene() {
     [regen],
   );
 
-  // Explode distance scales with the model, so it reads the same on a thimble and
-  // on a garden pot.
+  // Explode travel is proportional to the model, so it reads the same on a thimble
+  // and on a garden pot. Kept modest deliberately: the camera frames the assembled
+  // mold, and a generous explode simply throws the pieces off screen.
   const scale = useMemo(() => {
     const box = new THREE.Box3();
     for (const b of bodies) {
@@ -175,12 +172,29 @@ function Scene() {
       if (b.geometry.boundingBox) box.union(b.geometry.boundingBox);
     }
     const size = box.getSize(new THREE.Vector3());
-    return Math.max(size.x, size.y, size.z) * 0.6 || 50;
+    return Math.max(size.x, size.y, size.z) * 0.22 || 20;
   }, [bodies]);
+
+  /**
+   * Which bodies a tab shows by default.
+   *
+   * Without this, opening a document greets you with two opaque blue trays parked
+   * in front of everything, and the undercut heatmap -- the one thing that tells
+   * you whether your part can be cast at all -- is buried inside them. The Part
+   * Studio is about the part; the Mold tab is about the mold.
+   *
+   * It is a default, not a rule: the Parts List eyeballs still override it.
+   */
+  const shownByTab = (category: string | undefined): boolean => {
+    if (tab === 'part-studio') return category === 'part';
+    if (tab === 'mold') return category === 'plaster' || category === 'printable';
+    return true;
+  };
 
   const visible = bodies.filter((b) => {
     if (isolated) return b.id === isolated;
-    return !hidden.has(b.id);
+    if (hidden.has(b.id)) return false;
+    return shownByTab(meta.get(b.id)?.category);
   });
 
   return (
@@ -255,7 +269,14 @@ function ExplodedBody({
   selected: boolean;
   onPick: (id: string, additive: boolean) => void;
 }) {
-  const offset = useExplodeOffset(explode, meta?.explode ?? [0, 0, 0], scale);
+  const direction = meta?.explode ?? [0, 0, 0];
+  const target = useMemo(
+    () =>
+      new THREE.Vector3(direction[0], direction[1], direction[2]).multiplyScalar(
+        explode * scale,
+      ),
+    [direction, explode, scale],
+  );
 
   return (
     <Body
@@ -266,7 +287,7 @@ function ExplodedBody({
       showEdges={display === 'shaded-edges'}
       translucent={display === 'translucent'}
       useVertexColors={showHeatmap && body.id === 'master'}
-      offset={offset}
+      target={target}
       onPick={onPick}
     />
   );

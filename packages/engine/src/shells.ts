@@ -88,13 +88,17 @@ export async function buildShells(
       });
     };
 
+    // A tray travels TWICE as far as the plaster half it wraps. If they shared an
+    // explode direction they would move together and stay nested, and the exploded
+    // view would show two opaque boxes rather than a mold. Pulling the tray clear
+    // of its own plaster is the point of the gesture.
     if (mold.plasterUpper) {
       // The upper half's parting face is already its underside: it can be poured
       // as-is. Its sockets become bumps on the tray floor, and the spare runs out
       // through the open top as a rod, which is what forms the pour hole.
       const upper = scope.keep(M.ofMesh(await toManifoldMesh(mold.plasterUpper)));
       const tray = scope.keep(trayFor(M, upper, wall, scope));
-      emit('Tray A (upper half)', fromManifold(tray), [0, 0, 1]);
+      emit('Tray A (upper half)', fromManifold(tray), [0, 0, 2.2]);
 
       // The lower half is upside down for casting purposes. Flip it about the
       // parting plane so that face lands on the tray floor -- otherwise its
@@ -102,12 +106,12 @@ export async function buildShells(
       const lowerRaw = scope.keep(M.ofMesh(await toManifoldMesh(mold.plasterLower)));
       const lower = scope.keep(flipAboutZ(lowerRaw, mold.plan.partingZ));
       const trayB = scope.keep(trayFor(M, lower, wall, scope));
-      emit('Tray B (lower half)', fromManifold(trayB), [0, 0, -1]);
+      emit('Tray B (lower half)', fromManifold(trayB), [0, 0, -2.2]);
     } else {
       // One-piece mold: a single open tray, cast the same way.
       const solid = scope.keep(M.ofMesh(await toManifoldMesh(mold.plasterLower)));
       const tray = scope.keep(trayFor(M, solid, wall, scope));
-      emit('Tray (one-piece mold)', fromManifold(tray), [0, 0, -1]);
+      emit('Tray (one-piece mold)', fromManifold(tray), [0, 0, -2.2]);
     }
 
     return bodies;

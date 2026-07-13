@@ -1,5 +1,14 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "rootDir": ".", "outDir": "dist", "types": ["node"] },
-  "include": ["src/**/*"]
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "types": ["node"]
+  },
+  // The engine's ambient declarations (occt-import-js ships no types) have to be in
+  // this program too, since the CLI compiles the engine from source.
+  "include": ["src/**/*", "../engine/src/**/*.d.ts"]
 }

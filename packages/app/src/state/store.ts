@@ -235,7 +235,13 @@ export const useStore = create<State>((set, get) => ({
   },
 
   setTab(tab) {
-    set({ tab });
+    // Arriving at the Mold tab, ease the pieces apart. Nested inside one another
+    // they read as a single blue lump; separated, you can see that a mold is two
+    // halves and a cavity, which is the entire thing this tab exists to show.
+    set((s) => ({
+      tab,
+      explode: tab === 'mold' && s.explode === 0 ? 0.45 : tab === 'part-studio' ? 0 : s.explode,
+    }));
   },
   setDisplay(display) {
     set({ display });

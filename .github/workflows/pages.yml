@@ -1,0 +1,56 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# The app is 100% client-side, so "deploying" is copying static files. There is no
+# server, no cold start, no bill -- and no part file ever leaves the user's machine.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # Never ship a build that has not passed the geometry invariants.
+      - run: npm run test --workspace @slipcast/engine
+
+      - run: npm run build --workspace @slipcast/app
+        env:
+          # Pages serves from /<repo>/, not the domain root.
+          VITE_BASE: /${{ github.event.repository.name }}/
+
+      # Pages serves 404.html for unknown paths; making it the app means a deep
+      # link still lands somewhere useful instead of on GitHub's error page.
+      - run: cp packages/app/dist/index.html packages/app/dist/404.html
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: packages/app/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

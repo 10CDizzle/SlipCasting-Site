@@ -58,7 +58,7 @@ export async function buildPositive(
     if (!mold.plasterUpper) {
       // A one-piece mold needs no bed plate: there is no parting line to hold.
       const cottle = scope.keep(await cottleFor(M, mold, opts, scope));
-      emit('Cottle', fromManifold(cottle), [0, 0, -1]);
+      emit('Cottle', fromManifold(cottle), [0, 0, -2.2]);
       return bodies;
     }
 
@@ -98,11 +98,11 @@ export async function buildPositive(
       ? scope.keep(plate.add(scope.keep(M.union(cones))))
       : plate;
 
-    emit('Parting bed plate', fromManifold(plateWithKeys), [1, 0, 0]);
+    emit('Parting bed plate', fromManifold(plateWithKeys), [1.6, 0, 0]);
 
     // 4. The cottle: the walls plaster is poured inside.
     const cottle = scope.keep(await cottleFor(M, mold, opts, scope));
-    emit('Cottle', fromManifold(cottle), [0, 0, -1]);
+    emit('Cottle', fromManifold(cottle), [0, 0, -2.2]);
 
     return bodies;
   } finally {
