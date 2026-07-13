@@ -23,6 +23,7 @@ export function ShortcutMenu() {
   const setDisplay = useStore((s) => s.setDisplay);
   const setExplode = useStore((s) => s.setExplode);
   const explode = useStore((s) => s.explode);
+  const toggleSection = useStore((s) => s.toggleSection);
   const isolate = useStore((s) => s.isolate);
   const clearSelection = useStore((s) => s.clearSelection);
   const setRollback = useStore((s) => s.setRollback);
@@ -60,6 +61,7 @@ export function ShortcutMenu() {
   const actions: Action[] =
     tab === 'mold'
       ? [
+          { label: 'Section the mold', hint: 'see the cavity', run: toggleSection },
           { label: explode > 0 ? 'Collapse view' : 'Explode view', run: () => setExplode(explode > 0 ? 0 : 1) },
           { label: 'Translucent', run: () => setDisplay('translucent') },
           { label: 'Shaded with edges', run: () => setDisplay('shaded-edges') },

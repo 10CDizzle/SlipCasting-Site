@@ -2,6 +2,21 @@
 
 Every knob, what it means, and when to change it.
 
+## Inspecting the mold
+
+Not parameters, but the two things you will reach for constantly on the **Mold** tab:
+
+- **Right-click a body** in the Parts List to *isolate* it — everything else vanishes, so
+  you can look at one half on its own. Right-click again to bring the rest back.
+- **Section** cuts the mold open along a plane you drag, so you can see the cavity and
+  the plaster wall thickness around it. The cut face is capped, so it reads as solid
+  plaster rather than a hollow shell. Pick the axis, drag the plane, **Flip** to cut from
+  the other side.
+- **Explode** slides the pieces apart: tray, plaster half, plaster half, tray.
+
+Looking at the outside of a plaster block tells you almost nothing. These three are how
+you actually check a mold before committing eight hours of printing to it.
+
 ## Import
 
 | Parameter | Default | Notes |

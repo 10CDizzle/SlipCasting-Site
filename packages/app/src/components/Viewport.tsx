@@ -56,6 +56,7 @@ function Body({
   translucent,
   useVertexColors,
   target,
+  clip,
   onPick,
 }: {
   id: string;
@@ -66,6 +67,7 @@ function Body({
   translucent: boolean;
   useVertexColors: boolean;
   target: THREE.Vector3;
+  clip: THREE.Plane[];
   onPick: (id: string, additive: boolean) => void;
 }) {
   const hasColors = useVertexColors && geometry.hasAttribute('color');
@@ -100,9 +102,111 @@ function Body({
         emissive={selected ? new THREE.Color('#2f81f7') : new THREE.Color('#000000')}
         emissiveIntensity={selected ? 0.35 : 0}
         side={THREE.DoubleSide}
+        clippingPlanes={clip}
+        clipShadows
       />
-      {showEdges && <Edges threshold={25} color="#0c0e12" />}
+      {/* Edges are a separate line material and are NOT clipped by the section plane
+          -- so left alone they leave a ghost wireframe of the material you just cut
+          away, hovering in space like the outline of a box that is not there. */}
+      {showEdges && clip.length === 0 && <Edges threshold={25} color="#0c0e12" />}
     </mesh>
+  );
+}
+
+/**
+ * The cut face.
+ *
+ * A clipping plane alone leaves you looking into a hollow shell: the near wall is
+ * removed and you see the *inside* of the far wall, which reads as an empty box
+ * rather than a solid block of plaster with a cavity in it. That is precisely the
+ * wrong impression -- the whole point of sectioning a mold is to see how much
+ * plaster is where.
+ *
+ * So the cut is capped. The standard stencil trick: draw the solid's back faces to
+ * increment the stencil buffer and its front faces to decrement, which leaves a
+ * non-zero stencil exactly where the plane passes through material. Then paint a
+ * quad over the plane, masked to that region. The result is a solid cut face.
+ */
+function SectionCaps({
+  plane,
+  bodies,
+  visible,
+  scale,
+}: {
+  plane: THREE.Plane;
+  bodies: LoadedBody[];
+  visible: Set<string>;
+  scale: number;
+}) {
+  const capRef = useRef<THREE.Mesh>(null);
+  const { gl } = useThree();
+
+  useEffect(() => {
+    gl.localClippingEnabled = true;
+  }, [gl]);
+
+  // Keep the cap quad sitting on the plane, facing along it.
+  useFrame(() => {
+    const cap = capRef.current;
+    if (!cap) return;
+    cap.position.copy(plane.normal).multiplyScalar(-plane.constant);
+    cap.lookAt(cap.position.clone().add(plane.normal));
+  });
+
+  const shown = bodies.filter((b) => visible.has(b.id));
+
+  return (
+    <>
+      {shown.map((body) => (
+        <group key={`stencil-${body.id}`}>
+          {/* Back faces: +1 where we are inside the solid. */}
+          <mesh geometry={body.geometry} renderOrder={1}>
+            <meshBasicMaterial
+              side={THREE.BackSide}
+              clippingPlanes={[plane]}
+              colorWrite={false}
+              depthWrite={false}
+              stencilWrite
+              stencilFunc={THREE.AlwaysStencilFunc}
+              stencilFail={THREE.IncrementWrapStencilOp}
+              stencilZFail={THREE.IncrementWrapStencilOp}
+              stencilZPass={THREE.IncrementWrapStencilOp}
+            />
+          </mesh>
+          {/* Front faces: -1 again once we have passed back out. */}
+          <mesh geometry={body.geometry} renderOrder={1}>
+            <meshBasicMaterial
+              side={THREE.FrontSide}
+              clippingPlanes={[plane]}
+              colorWrite={false}
+              depthWrite={false}
+              stencilWrite
+              stencilFunc={THREE.AlwaysStencilFunc}
+              stencilFail={THREE.DecrementWrapStencilOp}
+              stencilZFail={THREE.DecrementWrapStencilOp}
+              stencilZPass={THREE.DecrementWrapStencilOp}
+            />
+          </mesh>
+        </group>
+      ))}
+
+      {/* The cap itself, painted only where the stencil says there is material. */}
+      <mesh ref={capRef} renderOrder={2}>
+        <planeGeometry args={[scale * 40, scale * 40]} />
+        <meshStandardMaterial
+          color="#b9b2a2"
+          roughness={0.9}
+          metalness={0}
+          side={THREE.DoubleSide}
+          stencilWrite
+          stencilRef={0}
+          stencilFunc={THREE.NotEqualStencilFunc}
+          stencilFail={THREE.ReplaceStencilOp}
+          stencilZFail={THREE.ReplaceStencilOp}
+          stencilZPass={THREE.ReplaceStencilOp}
+        />
+      </mesh>
+    </>
   );
 }
 
@@ -153,6 +257,7 @@ function Scene() {
   const hidden = useStore((s) => s.hidden);
   const isolated = useStore((s) => s.isolated);
   const tab = useStore((s) => s.tab);
+  const section = useStore((s) => s.section);
   const select = useStore((s) => s.select);
   const clearSelection = useStore((s) => s.clearSelection);
 
@@ -197,9 +302,46 @@ function Scene() {
     return shownByTab(meta.get(b.id)?.category);
   });
 
+  /**
+   * The section plane, positioned against the model's own bounds so the slider
+   * sweeps the part rather than empty space.
+   */
+  const plane = useMemo(() => {
+    const box = new THREE.Box3();
+    for (const b of visible) {
+      b.geometry.computeBoundingBox();
+      if (b.geometry.boundingBox) box.union(b.geometry.boundingBox);
+    }
+    if (box.isEmpty()) return null;
+
+    const normal = new THREE.Vector3(
+      section.axis === 'x' ? 1 : 0,
+      section.axis === 'y' ? 1 : 0,
+      section.axis === 'z' ? 1 : 0,
+    );
+    if (section.flip) normal.negate();
+
+    const lo = box.min[section.axis];
+    const hi = box.max[section.axis];
+    // Pad a little so the extremes of the slider clear the model entirely.
+    const span = hi - lo;
+    const at = lo - span * 0.02 + span * 1.04 * section.position;
+
+    // A plane keeps whatever lies on the NEGATIVE side of its normal, so the
+    // constant is the negated signed distance from the origin.
+    return new THREE.Plane(normal, -at * (section.flip ? -1 : 1));
+  }, [visible, section.axis, section.position, section.flip]);
+
+  const clip = section.enabled && plane ? [plane] : [];
+  const visibleIds = useMemo(() => new Set(visible.map((b) => b.id)), [visible]);
+
   return (
     <>
       <AutoFrame bodies={bodies} />
+
+      {section.enabled && plane && (
+        <SectionCaps plane={plane} bodies={visible} visible={visibleIds} scale={scale} />
+      )}
 
       <ambientLight intensity={0.55} />
       <directionalLight position={[80, -120, 160]} intensity={1.5} castShadow />
@@ -221,6 +363,7 @@ function Scene() {
           display={display}
           showHeatmap={showHeatmap}
           selected={selection.includes(body.id)}
+          clip={clip}
           onPick={select}
         />
       ))}
@@ -258,6 +401,7 @@ function ExplodedBody({
   display,
   showHeatmap,
   selected,
+  clip,
   onPick,
 }: {
   body: LoadedBody;
@@ -267,6 +411,7 @@ function ExplodedBody({
   display: string;
   showHeatmap: boolean;
   selected: boolean;
+  clip: THREE.Plane[];
   onPick: (id: string, additive: boolean) => void;
 }) {
   const direction = meta?.explode ?? [0, 0, 0];
@@ -288,6 +433,7 @@ function ExplodedBody({
       translucent={display === 'translucent'}
       useVertexColors={showHeatmap && body.id === 'master'}
       target={target}
+      clip={clip}
       onPick={onPick}
     />
   );
@@ -315,7 +461,9 @@ export function Viewport() {
         shadows
         camera={{ position: [180, -220, 150], fov: 35, up: [0, 0, 1], far: 20000 }}
         orthographic={!perspective}
-        gl={{ antialias: true }}
+        // The section caps are drawn with the stencil buffer, which has to be asked
+        // for explicitly -- three.js does not allocate one by default.
+        gl={{ antialias: true, stencil: true, localClippingEnabled: true }}
       >
         <color attach="background" args={['#0d0f13']} />
         <Suspense fallback={null}>

@@ -198,6 +198,31 @@ test('switching to the positive workflow changes what you print', async ({ page 
   await expect(page.getByTestId('parts-list')).toContainText('bed plate');
 });
 
+test('you can isolate one half of the mold and section it open', async ({ page }) => {
+  // Looking at the outside of a plaster block tells you almost nothing. What you
+  // need to see is the cavity, and how much plaster stands between it and the
+  // outside world.
+  await openSample(page, 'cup');
+  await page.getByTestId('tab-mold').click();
+
+  // Right-click isolates: everything but this half disappears.
+  await page.getByTestId('part-plaster-lower').click({ button: 'right' });
+  await expect(page.getByTestId('part-plaster-upper')).toHaveClass(/opacity-40/);
+
+  // Section it open.
+  await page.getByTestId('toggle-section').click();
+  await expect(page.getByTestId('toggle-section')).toHaveAttribute('data-active', 'true');
+  await expect(page.getByTestId('section-slider')).toBeVisible();
+
+  await page.getByTestId('section-slider').fill('0.5');
+  await page.getByTestId('section-axis').selectOption('x');
+  await page.getByTestId('section-flip').click();
+
+  // Still rendering, not crashed on a stencil buffer that was never allocated.
+  await expect(page.getByTestId('viewport')).toBeVisible();
+  await expect(page.getByTestId('mass-properties')).toContainText('Plaster');
+});
+
 test('hiding a body removes it from the scene', async ({ page }) => {
   await openSample(page, 'cup');
 

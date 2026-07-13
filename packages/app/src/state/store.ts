@@ -49,6 +49,8 @@ export interface State {
   perspective: boolean;
   showHeatmap: boolean;
   explode: number;
+  /** Cut the model open to see the cavity inside it. */
+  section: { enabled: boolean; axis: 'x' | 'y' | 'z'; position: number; flip: boolean };
 
   busy: boolean;
   regen: RegenView | null;
@@ -75,6 +77,8 @@ export interface State {
   togglePerspective: () => void;
   toggleHeatmap: () => void;
   setExplode: (v: number) => void;
+  setSection: (s: Partial<State['section']>) => void;
+  toggleSection: () => void;
 
   regenerate: () => Promise<void>;
   saveVersion: (name: string) => void;
@@ -103,6 +107,7 @@ export const useStore = create<State>((set, get) => ({
   perspective: true,
   showHeatmap: true,
   explode: 0,
+  section: { enabled: false, axis: 'y', position: 0.5, flip: false },
 
   busy: false,
   regen: null,
@@ -254,6 +259,14 @@ export const useStore = create<State>((set, get) => ({
   },
   setExplode(explode) {
     set({ explode });
+  },
+
+  setSection(patch) {
+    set((s) => ({ section: { ...s.section, ...patch } }));
+  },
+
+  toggleSection() {
+    set((s) => ({ section: { ...s.section, enabled: !s.section.enabled } }));
   },
 
   async regenerate() {

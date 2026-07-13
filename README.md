@@ -72,6 +72,7 @@ The UI is modelled on Onshape. It is a real feature tree, not a wizard.
 |  |  |
 |---|---|
 | ![Undercut heatmap](docs/media/heatmap.png) | **The undercut heatmap.** Green releases cleanly, amber drags against the plaster, red is trapped and cannot be molded at all. |
+| ![Section view](docs/media/section.png) | **Section any half open** to see the cavity and the plaster around it. The cut face is capped, so it reads as solid plaster rather than a hollow shell — and the registration keys are right there on the parting face. |
 | ![Feature errors](docs/media/feature-error.png) | **Drag a feature somewhere illegal and it goes red**, telling you what it needed — rather than refusing the gesture. The same thing Onshape does. |
 
 There is a Rollback Bar that regenerates the model at any earlier point in its history, a

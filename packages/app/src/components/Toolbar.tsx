@@ -16,6 +16,7 @@ export function Toolbar({ onExit }: { onExit: () => void }) {
   const perspective = useStore((s) => s.perspective);
   const showHeatmap = useStore((s) => s.showHeatmap);
   const explode = useStore((s) => s.explode);
+  const section = useStore((s) => s.section);
   const busy = useStore((s) => s.busy);
   const regen = useStore((s) => s.regen);
 
@@ -23,6 +24,8 @@ export function Toolbar({ onExit }: { onExit: () => void }) {
   const togglePerspective = useStore((s) => s.togglePerspective);
   const toggleHeatmap = useStore((s) => s.toggleHeatmap);
   const setExplode = useStore((s) => s.setExplode);
+  const setSection = useStore((s) => s.setSection);
+  const toggleSection = useStore((s) => s.toggleSection);
   const openFile = useStore((s) => s.openFile);
   const exportZip = useStore((s) => s.exportZip);
 
@@ -105,6 +108,55 @@ export function Toolbar({ onExit }: { onExit: () => void }) {
             data-testid="explode-slider"
             aria-label="Exploded view"
           />
+
+          <div className="mx-1 h-5 w-px bg-shell-600" />
+
+          {/* Section. Looking at the outside of a plaster block tells you almost
+              nothing -- what you want to see is the cavity, and how much plaster
+              stands between it and the outside world. */}
+          <Toggle
+            label="Section"
+            active={section.enabled}
+            onClick={toggleSection}
+            testId="toggle-section"
+          />
+
+          {section.enabled && (
+            <>
+              <select
+                value={section.axis}
+                onChange={(e) => setSection({ axis: e.target.value as 'x' | 'y' | 'z' })}
+                className="rounded border border-shell-600 bg-shell-900 px-1 py-0.5 text-[11px] text-ink-300 outline-none focus:border-pick"
+                aria-label="Section axis"
+                data-testid="section-axis"
+              >
+                <option value="x">X</option>
+                <option value="y">Y</option>
+                <option value="z">Z</option>
+              </select>
+
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.005}
+                value={section.position}
+                onChange={(e) => setSection({ position: Number(e.target.value) })}
+                className="h-1 w-24 cursor-pointer appearance-none rounded bg-shell-600 accent-[#2f81f7]"
+                data-testid="section-slider"
+                aria-label="Section position"
+              />
+
+              <button
+                onClick={() => setSection({ flip: !section.flip })}
+                className="rounded border border-shell-600 px-1.5 py-0.5 text-[11px] text-ink-300 hover:bg-shell-700"
+                title="Cut from the other side"
+                data-testid="section-flip"
+              >
+                Flip
+              </button>
+            </>
+          )}
         </div>
       )}
 
