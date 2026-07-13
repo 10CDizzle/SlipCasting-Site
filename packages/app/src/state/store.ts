@@ -39,6 +39,13 @@ export interface State {
 
   /** The feature whose dialog is open. */
   editing: string | null;
+  /**
+   * A dialog field is armed and waiting for a click in the viewport.
+   *
+   * Onshape's core interaction: the field turns blue and the next thing you click on
+   * the model fills it in. Straight from UI-UX.md §4.
+   */
+  picking: 'spare' | null;
   /** Additive selection, per Onshape: clicking adds, Spacebar clears. */
   selection: string[];
   hidden: Set<string>;
@@ -66,6 +73,11 @@ export interface State {
   toggleSuppressed: (id: string) => void;
   setRollback: (index: number) => void;
   setEditing: (id: string | null) => void;
+  /** Arm a field to be filled by the next click in the viewport. */
+  startPicking: (what: 'spare') => void;
+  /** A click landed on the model at (x, y) in the pull frame. */
+  pickedPoint: (x: number, y: number) => void;
+  cancelPicking: () => void;
 
   select: (id: string, additive: boolean) => void;
   clearSelection: () => void;
@@ -98,6 +110,7 @@ export const useStore = create<State>((set, get) => ({
   versions: null,
 
   editing: null,
+  picking: null,
   selection: [],
   hidden: new Set(),
   isolated: null,
@@ -206,7 +219,32 @@ export const useStore = create<State>((set, get) => ({
   },
 
   setEditing(id) {
-    set({ editing: id });
+    set({ editing: id, picking: null });
+  },
+
+  startPicking(what) {
+    // The spare is placed on the PART, so show the part. Arming a pick while the
+    // Mold tab is up would leave the user clicking on plaster they cannot pick.
+    set({ picking: what, tab: 'part-studio', explode: 0 });
+  },
+
+  pickedPoint(x, y) {
+    const { picking, features } = get();
+    if (picking !== 'spare') return;
+
+    const spare = features.find((f) => f.type === 'spare');
+    if (!spare) return;
+
+    set({ picking: null });
+    // Rounded: a pour hole placed to the tenth of a micron is false precision, and
+    // it makes the regen cache miss on every imperceptible mouse wobble.
+    get().updateFeature(spare.id, {
+      sparePosition: [Math.round(x * 10) / 10, Math.round(y * 10) / 10],
+    });
+  },
+
+  cancelPicking() {
+    set({ picking: null });
   },
 
   select(id, additive) {

@@ -223,6 +223,47 @@ test('you can isolate one half of the mold and section it open', async ({ page }
   await expect(page.getByTestId('mass-properties')).toContainText('Plaster');
 });
 
+test('you can place the pour spare by clicking the part', async ({ page }) => {
+  await openSample(page, 'cup');
+
+  await page.getByTestId('feature-spare').click();
+
+  // Defaults to the summit, and says so in words rather than coordinates.
+  await expect(page.getByTestId('pick-spare')).toContainText('highest point');
+
+  // Arm the field. Onshape's paradigm: it turns blue and waits for a viewport click.
+  await page.getByTestId('pick-spare').click();
+  await expect(page.getByTestId('pick-spare')).toHaveAttribute('data-armed', 'true');
+  await expect(page.getByTestId('picking-hint')).toBeVisible();
+
+  // Click the part, off to one side of centre.
+  const viewport = page.getByTestId('viewport');
+  const box = (await viewport.boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2 + 40, box.y + box.height / 2);
+
+  // The field now reads a real coordinate, and the mold rebuilt around it.
+  await expect(page.getByTestId('pick-spare')).toHaveAttribute('data-armed', 'false');
+  await expect(page.getByTestId('pick-spare')).toContainText('mm', { timeout: 30_000 });
+  await expect(page.getByTestId('mass-properties')).toContainText('Plaster');
+
+  // And you can go back to letting it choose.
+  await page.getByTestId('reset-spare').click();
+  await expect(page.getByTestId('pick-spare')).toContainText('highest point');
+});
+
+test('escape cancels an armed pick', async ({ page }) => {
+  await openSample(page, 'cup');
+
+  await page.getByTestId('feature-spare').click();
+  await page.getByTestId('pick-spare').click();
+  await expect(page.getByTestId('picking-hint')).toBeVisible();
+
+  await page.keyboard.press('Escape');
+
+  await expect(page.getByTestId('picking-hint')).toBeHidden();
+  await expect(page.getByTestId('pick-spare')).toHaveAttribute('data-armed', 'false');
+});
+
 test('hiding a body removes it from the scene', async ({ page }) => {
   await openSample(page, 'cup');
 

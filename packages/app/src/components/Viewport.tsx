@@ -68,7 +68,7 @@ function Body({
   useVertexColors: boolean;
   target: THREE.Vector3;
   clip: THREE.Plane[];
-  onPick: (id: string, additive: boolean) => void;
+  onPick: (id: string, additive: boolean, point: THREE.Vector3) => void;
 }) {
   const hasColors = useVertexColors && geometry.hasAttribute('color');
   const ref = useRef<THREE.Mesh>(null);
@@ -89,7 +89,7 @@ function Body({
       receiveShadow
       onClick={(e: ThreeEvent<MouseEvent>) => {
         e.stopPropagation();
-        onPick(id, e.shiftKey || e.ctrlKey || e.metaKey);
+        onPick(id, e.shiftKey || e.ctrlKey || e.metaKey, e.point);
       }}
     >
       <meshStandardMaterial
@@ -210,6 +210,49 @@ function SectionCaps({
   );
 }
 
+/** A ring and a stem marking where the pour channel will meet the part. */
+function SpareMarker({
+  position,
+  bodies,
+}: {
+  position: [number, number];
+  bodies: LoadedBody[];
+}) {
+  const top = useMemo(() => {
+    const box = new THREE.Box3();
+    for (const b of bodies) {
+      b.geometry.computeBoundingBox();
+      if (b.geometry.boundingBox) box.union(b.geometry.boundingBox);
+    }
+    return box.isEmpty() ? 0 : box.max.z;
+  }, [bodies]);
+
+  const size = useMemo(() => {
+    const box = new THREE.Box3();
+    for (const b of bodies) {
+      if (b.geometry.boundingBox) box.union(b.geometry.boundingBox);
+    }
+    const s = box.getSize(new THREE.Vector3());
+    return Math.max(s.x, s.y, s.z) || 50;
+  }, [bodies]);
+
+  const r = size * 0.06;
+
+  return (
+    <group position={[position[0], position[1], top]}>
+      <mesh rotation={[0, 0, 0]}>
+        <torusGeometry args={[r, r * 0.12, 8, 32]} />
+        <meshBasicMaterial color="#2f81f7" depthTest={false} transparent opacity={0.9} />
+      </mesh>
+      {/* three's cylinder runs along Y; this scene is Z-up, so stand it on end. */}
+      <mesh position={[0, 0, size * 0.09]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[r * 0.08, r * 0.08, size * 0.18, 8]} />
+        <meshBasicMaterial color="#2f81f7" depthTest={false} transparent opacity={0.65} />
+      </mesh>
+    </group>
+  );
+}
+
 /** Keeps the camera framing the model whenever a new one arrives. */
 function AutoFrame({ bodies }: { bodies: LoadedBody[] }) {
   const { camera, controls } = useThree();
@@ -258,8 +301,30 @@ function Scene() {
   const isolated = useStore((s) => s.isolated);
   const tab = useStore((s) => s.tab);
   const section = useStore((s) => s.section);
+  const picking = useStore((s) => s.picking);
+  const features = useStore((s) => s.features);
   const select = useStore((s) => s.select);
+  const pickedPoint = useStore((s) => s.pickedPoint);
   const clearSelection = useStore((s) => s.clearSelection);
+
+  /**
+   * A click on a body either selects it, or -- if a dialog field is armed -- fills
+   * that field with where you clicked.
+   */
+  const handlePick = (id: string, additive: boolean, point: THREE.Vector3) => {
+    if (picking === 'spare') {
+      pickedPoint(point.x, point.y);
+      return;
+    }
+    select(id, additive);
+  };
+
+  // Where the pour spare currently sits, so it is not an invisible setting.
+  const sparePos = useMemo(() => {
+    const spare = features.find((f) => f.type === 'spare');
+    const p = spare?.params.sparePosition as [number, number] | null | undefined;
+    return p ?? null;
+  }, [features]);
 
   const bodies = useGlbBodies(regen?.glb ?? null);
   const meta = useMemo(
@@ -364,9 +429,15 @@ function Scene() {
           showHeatmap={showHeatmap}
           selected={selection.includes(body.id)}
           clip={clip}
-          onPick={select}
+          onPick={handlePick}
         />
       ))}
+
+      {/* Where the pour spare will go. Without this the position is an invisible
+          setting, and you cannot check by eye that the click landed where you meant. */}
+      {tab === 'part-studio' && sparePos && bodies.length > 0 && (
+        <SpareMarker position={sparePos} bodies={visible} />
+      )}
 
       <Grid
         args={[600, 600]}
@@ -412,7 +483,7 @@ function ExplodedBody({
   showHeatmap: boolean;
   selected: boolean;
   clip: THREE.Plane[];
-  onPick: (id: string, additive: boolean) => void;
+  onPick: (id: string, additive: boolean, point: THREE.Vector3) => void;
 }) {
   const direction = meta?.explode ?? [0, 0, 0];
   const target = useMemo(

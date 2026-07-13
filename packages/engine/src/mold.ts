@@ -130,6 +130,7 @@ export async function buildMold(part: MeshData, params: MoldParams, pullOverride
       await spareSolid(plan.master, blockBox.max[2], {
         diameter: params.spareDiameter,
         height: params.spareHeight,
+        position: params.sparePosition,
       }),
     );
 

@@ -74,7 +74,11 @@ export function defaultFeatures(fileId: string, fileName: string): Feature[] {
       id: 'f5',
       type: 'spare',
       name: 'Pour spare',
-      params: { spareDiameter: p.spareDiameter, spareHeight: p.spareHeight },
+      params: {
+        spareDiameter: p.spareDiameter,
+        spareHeight: p.spareHeight,
+        sparePosition: p.sparePosition,
+      },
     },
     { id: 'f6', type: 'split', name: 'Split', params: { split: p.split } },
     {

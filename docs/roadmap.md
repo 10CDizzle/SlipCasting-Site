@@ -44,7 +44,8 @@ genuinely how its mold is parted.
 ## Possible later
 
 - Curved parting surfaces that follow the silhouette.
-- Click-to-place the spare, rather than defaulting to the part's summit.
 - Plaster consistency as a parameter.
 - A batch mode: N molds of the same part, nested for the print bed.
 - Multi-cavity molds — several parts in one block.
+- Dragging the parting plane directly in the viewport, rather than trusting the
+  automatic one.

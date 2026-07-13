@@ -166,6 +166,8 @@ const FIELDS: Record<string, FieldSpec[]> = {
 export function FeatureDialog({ feature }: { feature: Feature }) {
   const updateFeature = useStore((s) => s.updateFeature);
   const setEditing = useStore((s) => s.setEditing);
+  const picking = useStore((s) => s.picking);
+  const cancelPicking = useStore((s) => s.cancelPicking);
   const first = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -179,8 +181,17 @@ export function FeatureDialog({ feature }: { feature: Feature }) {
       className="border-t border-shell-600 bg-shell-800"
       data-testid={`dialog-${feature.type}`}
       onKeyDown={(e) => {
-        if (e.key === 'Escape') setEditing(null);
-        if (e.key === 'Enter' && !e.shiftKey) setEditing(null);
+        if (e.key === 'Escape') {
+          // Escape backs out one step at a time. With a field armed, it disarms the
+          // field; it does not also slam the dialog shut and take the field with it.
+          if (picking) {
+            cancelPicking();
+            e.stopPropagation();
+          } else {
+            setEditing(null);
+          }
+        }
+        if (e.key === 'Enter' && !e.shiftKey && !picking) setEditing(null);
       }}
     >
       <div className="flex items-center justify-between px-2.5 py-1.5">
@@ -203,6 +214,9 @@ export function FeatureDialog({ feature }: { feature: Feature }) {
           <p className="text-[11px] text-ink-500">Nothing to adjust on this feature.</p>
         )}
 
+        {/* The spare's position is a viewport pick, not a number you type. */}
+        {feature.type === 'spare' && <SparePlacement feature={feature} />}
+
         {fields.map((field, i) => (
           <Field
             key={field.key}
@@ -213,6 +227,72 @@ export function FeatureDialog({ feature }: { feature: Feature }) {
           />
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * The pour spare's position: a selection field, not a number field.
+ *
+ * Straight out of UI-UX.md §4 -- the primary input is highlighted blue and waits for
+ * you to click the model. Typing coordinates into a box would be a strange way to
+ * say "put the hole here", and nobody knows where (22.4, -3.1) is on their own pot.
+ */
+function SparePlacement({ feature }: { feature: Feature }) {
+  const picking = useStore((s) => s.picking);
+  const startPicking = useStore((s) => s.startPicking);
+  const cancelPicking = useStore((s) => s.cancelPicking);
+  const updateFeature = useStore((s) => s.updateFeature);
+
+  const position = feature.params.sparePosition as [number, number] | null | undefined;
+  const armed = picking === 'spare';
+
+  return (
+    <div>
+      <span className="mb-1 block text-[11px] text-ink-300">Position</span>
+
+      <button
+        onClick={() => (armed ? cancelPicking() : startPicking('spare'))}
+        data-testid="pick-spare"
+        data-armed={armed}
+        className={[
+          'flex w-full items-center gap-1.5 rounded border px-2 py-1 text-left text-[11px] transition',
+          armed
+            ? 'border-pick bg-pick-soft text-pick'
+            : 'border-shell-600 bg-shell-900 text-ink-100 hover:border-shell-500',
+        ].join(' ')}
+      >
+        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+          <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+          <circle cx="12" cy="12" r="3.5" />
+        </svg>
+
+        {armed ? (
+          <span className="animate-pulse">Click the part…</span>
+        ) : position ? (
+          <span className="font-mono tabular-nums">
+            {position[0].toFixed(1)}, {position[1].toFixed(1)} mm
+          </span>
+        ) : (
+          <span>Over the highest point</span>
+        )}
+      </button>
+
+      {position && !armed && (
+        <button
+          onClick={() => updateFeature(feature.id, { sparePosition: null })}
+          className="mt-1 text-[10px] text-ink-500 underline-offset-2 hover:text-ink-100 hover:underline"
+          data-testid="reset-spare"
+        >
+          Back to automatic
+        </button>
+      )}
+
+      <p className="mt-1 text-[10px] leading-snug text-ink-500">
+        Where the slip goes in. The default sits on the part&apos;s highest point, which
+        is right for a cup and merely plausible for anything else — a teapot wants it on
+        the foot, not on the tip of the spout.
+      </p>
     </div>
   );
 }

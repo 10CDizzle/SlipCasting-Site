@@ -30,9 +30,21 @@ export function Workspace({ onExit }: { onExit: () => void }) {
   const editing = useStore((s) => s.editing);
   const regen = useStore((s) => s.regen);
   const fatal = useStore((s) => s.fatal);
+  const picking = useStore((s) => s.picking);
+  const cancelPicking = useStore((s) => s.cancelPicking);
 
   const [panel, setPanel] = useState<'appearance' | null>(null);
   const editingFeature = features.find((f) => f.id === editing);
+
+  // Escape gets you out of an armed pick, from anywhere.
+  useEffect(() => {
+    if (!picking) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') cancelPicking();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [picking, cancelPicking]);
 
   // Mobile: the left panel collapses so the graphics area keeps the screen.
   const [drawer, setDrawer] = useState(false);
@@ -82,6 +94,17 @@ export function Workspace({ onExit }: { onExit: () => void }) {
         {/* Centre: graphics area */}
         <main className="relative min-w-0 flex-1">
           {tab === 'instructions' ? <Instructions /> : <Viewport />}
+
+          {/* Armed and waiting for a click on the model. Say so where the user is
+              actually looking, not only in the panel they clicked from. */}
+          {picking && (
+            <div
+              className="pointer-events-none absolute left-1/2 top-3 z-20 -translate-x-1/2 rounded-full border border-pick bg-pick-soft px-3 py-1 text-[11px] text-pick backdrop-blur"
+              data-testid="picking-hint"
+            >
+              Click the part to place the pour spare &nbsp;·&nbsp; Esc to cancel
+            </div>
+          )}
 
           {!drawer && (
             <button

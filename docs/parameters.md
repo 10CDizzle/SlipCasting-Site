@@ -52,8 +52,20 @@ quietly the wrong size, and you find out after the kiln.
 
 | Parameter | Default | Notes |
 |---|---|---|
+| **Position** | Over the highest point | **Click the part to place it.** The field turns blue and waits for you to pick a spot on the model. |
 | **Pour hole** | 30 mm | Too narrow and the slip will not flow. Too wide and you waste clay and leave a big scar to trim. |
 | **Reservoir height** | 40 mm | The head of slip that keeps feeding the cast as the plaster draws water out and the level drops. Too short and the rim comes out starved. |
+
+The default — the part's summit — is right for a cup and merely *plausible* for anything
+else. A teapot wants the spare on its foot, not on the tip of its spout; a figurine
+wants it somewhere the scar will not show. So click where you want it.
+
+Whatever you pick, the channel starts from the surface **beneath that point**, not from
+the part's global maximum. Those are the same thing only at the summit; anywhere else,
+starting from the maximum would leave the channel hanging in mid-air above the spot you
+picked, connected to nothing — a mold with a pour hole that dead-ends and a cavity
+sealed in solid plaster. Click somewhere that is not over the part at all and the tool
+refuses rather than building that.
 
 ## Split
 

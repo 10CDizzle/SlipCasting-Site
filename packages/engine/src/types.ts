@@ -83,6 +83,14 @@ export interface MoldParams {
   /** Pour reservoir. */
   spareDiameter: number;
   spareHeight: number;
+  /**
+   * Where the pour channel meets the part, in the pull frame (x, y).
+   *
+   * Null means "over the summit", which is right for an upright cup and merely
+   * plausible for anything else. A teapot wants the spare on its foot, not on the
+   * tip of its spout.
+   */
+  sparePosition: [number, number] | null;
   /** Printed shell wall thickness (mode 'shells' only), mm. */
   shellWall: number;
   mode: OutputMode;
@@ -101,6 +109,7 @@ export const DEFAULT_PARAMS: MoldParams = {
   keyClearance: 0.3,
   spareDiameter: 30,
   spareHeight: 40,
+  sparePosition: null,
   shellWall: 3,
   mode: 'shells',
 };
