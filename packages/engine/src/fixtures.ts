@@ -3,12 +3,25 @@
  * blobs so they are reviewable, diffable, and parametric.
  *
  * The set is chosen to cover the ways this engine can be wrong:
- *  - `cup`, `cylinder`, `sphere`  -- must succeed, with known analytic volumes
- *  - `cubeWithBoss`               -- a flat-topped part, tests draft classification
- *  - `torus`, `handledMug`        -- MUST be reported un-moldable; if these ever
- *                                    come back green, undercut detection is broken
- *  - `brokenSoup`, `holedMesh`    -- must be repaired, or honestly refused
+ *
+ *  - `cup`, `cylinder`, `sphere`  Must succeed, with known analytic volumes.
+ *  - `cubeWithBoss`               Flat faces with zero draft: must read 'shallow'.
+ *  - `torus`                      Moldable, but ONLY along its axis. Split at the
+ *                                 equator a donut has no undercuts; split along any
+ *                                 in-plane direction it does.
+ *  - `handledMug`                 The sharpest test in the suite. It is un-moldable
+ *                                 along its own axis -- the naive guess -- because the
+ *                                 handle's inner surface is occluded from above and
+ *                                 below. It IS moldable perpendicular to the handle's
+ *                                 loop, which is exactly how real mug molds are
+ *                                 parted. The pull-direction search has to find that.
+ *  - `hollowSphere`               Genuinely impossible: an enclosed internal void is
+ *                                 invisible from every direction. Nothing can mold it,
+ *                                 and the engine must say so rather than guess.
+ *  - soup / holed / flipped       Must be repaired, or honestly refused.
  */
+import { manifold, withScope } from './wasm.js';
+import { fromManifold, toManifoldMesh } from './mesh.js';
 import type { MeshData, Vec3 } from './types.js';
 
 interface Builder {
@@ -143,63 +156,61 @@ export function cup(opts: { radius?: number; height?: number; segments?: number 
   );
 }
 
-/** A cube with a raised boss. Flat top faces have zero draft: must read 'shallow'. */
+/**
+ * A cube with a raised cylindrical boss.
+ *
+ * Its vertical walls have exactly zero draft and its top face is exactly
+ * perpendicular to Z, so this is the fixture that pins draft classification:
+ * the walls must come back 'shallow' (they release, but they drag), never 'ok'.
+ */
 export function cubeWithBoss(size = 40, bossR = 10, bossH = 10, segments = 32): MeshData {
   const b = newBuilder();
   const s = size / 2;
 
-  // Cube, open on top -- the boss and the top face are stitched on after.
-  const v = [
-    addVertex(b, -s, -s, 0), addVertex(b, s, -s, 0),
-    addVertex(b, s, s, 0), addVertex(b, -s, s, 0),
-    addVertex(b, -s, -s, size), addVertex(b, s, -s, size),
-    addVertex(b, s, s, size), addVertex(b, -s, s, size),
-  ];
-  addQuad(b, v[0]!, v[3]!, v[2]!, v[1]!);              // bottom
-  addQuad(b, v[0]!, v[1]!, v[5]!, v[4]!);              // sides
-  addQuad(b, v[1]!, v[2]!, v[6]!, v[5]!);
-  addQuad(b, v[2]!, v[3]!, v[7]!, v[6]!);
-  addQuad(b, v[3]!, v[0]!, v[4]!, v[7]!);
+  // One shared parametrisation for every ring, so each pair of rings is a clean
+  // quad strip and no edge is left unmatched.
+  const bottomRing: number[] = [];
+  const topRing: number[] = [];
+  const holeRing: number[] = [];
+  const bossRing: number[] = [];
 
-  // Top face with a circular hole, plus the boss rising out of it.
-  const hole: number[] = [];
-  const top: number[] = [];
   for (let i = 0; i < segments; i++) {
     const a = (i / segments) * Math.PI * 2;
-    const x = bossR * Math.cos(a);
-    const y = bossR * Math.sin(a);
-    hole.push(addVertex(b, x, y, size));
-    top.push(addVertex(b, x, y, size + bossH));
+    const ca = Math.cos(a);
+    const sa = Math.sin(a);
+    // Push the unit circle out onto the square's boundary: the walls stay planar.
+    const k = 1 / Math.max(Math.abs(ca), Math.abs(sa));
+    const x = s * ca * k;
+    const y = s * sa * k;
+
+    bottomRing.push(addVertex(b, x, y, 0));
+    topRing.push(addVertex(b, x, y, size));
+    holeRing.push(addVertex(b, bossR * ca, bossR * sa, size));
+    bossRing.push(addVertex(b, bossR * ca, bossR * sa, size + bossH));
   }
 
-  // Stitch the square top to the circular hole by nearest-corner fan.
-  const corners = [v[4]!, v[5]!, v[6]!, v[7]!];
+  const bottomCenter = addVertex(b, 0, 0, 0);
+  const bossCap = addVertex(b, 0, 0, size + bossH);
+
   for (let i = 0; i < segments; i++) {
     const n = (i + 1) % segments;
-    const quadrant = Math.floor((i / segments) * 4) % 4;
-    const nextQuadrant = Math.floor((n / segments) * 4) % 4;
-    addTri(b, hole[i]!, corners[quadrant]!, hole[n]!);
-    if (quadrant !== nextQuadrant) {
-      addTri(b, hole[n]!, corners[quadrant]!, corners[nextQuadrant]!);
-    }
-  }
-  // Boss wall + cap.
-  for (let i = 0; i < segments; i++) {
-    const n = (i + 1) % segments;
-    addQuad(b, hole[i]!, hole[n]!, top[n]!, top[i]!);
-  }
-  const cap = addVertex(b, 0, 0, size + bossH);
-  for (let i = 0; i < segments; i++) {
-    addTri(b, cap, top[i]!, top[(i + 1) % segments]!);
+    addTri(b, bottomCenter, bottomRing[n]!, bottomRing[i]!);            // base
+    addQuad(b, bottomRing[i]!, bottomRing[n]!, topRing[n]!, topRing[i]!); // walls
+    addQuad(b, topRing[i]!, topRing[n]!, holeRing[n]!, holeRing[i]!);     // top annulus
+    addQuad(b, holeRing[i]!, holeRing[n]!, bossRing[n]!, bossRing[i]!);   // boss wall
+    addTri(b, bossCap, bossRing[i]!, bossRing[n]!);                       // boss cap
   }
 
   return finish(b);
 }
 
 /**
- * A torus lying in the XY plane. Its inner surface is occluded from every
- * direction, so it is un-moldable with a 2-part planar mold no matter how you
- * turn it. If the undercut detector ever calls this moldable, it is broken.
+ * A torus lying in the XY plane.
+ *
+ * Moldable along Z: cut a donut at its equator and each half is a plain ring
+ * bump with no undercuts -- which is why real donut molds are two-part. But cut
+ * it along any in-plane direction and the hole becomes a through-undercut. It is
+ * the fixture that proves pull direction matters.
  */
 export function torus(R = 30, r = 10, major = 48, minor = 24): MeshData {
   const b = newBuilder();
@@ -227,15 +238,56 @@ export function torus(R = 30, r = 10, major = 48, minor = 24): MeshData {
 }
 
 /**
- * A mug: a cup with a closed-loop handle. The handle's inner surface is a true
- * undercut from every pull direction -- this is the realistic un-moldable part,
- * the one a ceramicist would actually try, and the reason real mugs need
- * 3+ piece molds. Must be reported red.
+ * A mug: a cup with a closed-loop handle, the loop lying in the XZ plane.
+ *
+ * Pull it along Z (the mug's own axis, and the obvious first guess) and the
+ * handle's inner surface is occluded both from above and from below -- a true
+ * undercut. Pull it along Y instead, straight through the handle's hole, and
+ * every surface is reachable.
+ *
+ * That Y answer is not a quirk of this fixture: it is how mug molds are actually
+ * parted in a pottery, on the vertical plane that bisects the handle. If the
+ * pull-direction search reproduces that, it has understood the problem.
  */
-export function handledMug(): MeshData {
+export async function handledMug(): Promise<MeshData> {
   const body = cup({ radius: 32, height: 80, segments: 48 });
   const handle = handleLoop();
-  return mergeMeshes(body, handle);
+  // A real union, not concatenated triangles. The handle's loop passes through
+  // the mug wall, so simply appending the two meshes would leave both surfaces
+  // buried inside the solid -- and buried surfaces are invisible from every
+  // direction, which makes the part read as hopelessly undercut for reasons that
+  // have nothing to do with the handle.
+  return booleanUnion(body, handle);
+}
+
+/**
+ * A sphere with a concentric spherical void sealed inside it.
+ *
+ * No pull direction can reach an enclosed void, so this part is impossible --
+ * full stop, from every angle. It exists to prove the engine refuses rather than
+ * quietly producing a mold that ignores the geometry it could not see.
+ */
+export async function hollowSphere(
+  outer = 25,
+  inner = 15,
+  segments = 32,
+): Promise<MeshData> {
+  const wasm = await manifold();
+  return withScope(async (s) => {
+    const shell = s.keep(wasm.Manifold.ofMesh(await toManifoldMesh(sphere(outer, segments))));
+    const void_ = s.keep(wasm.Manifold.ofMesh(await toManifoldMesh(sphere(inner, segments))));
+    return fromManifold(s.keep(shell.subtract(void_)));
+  });
+}
+
+/** Boolean union of two meshes, used where overlap would otherwise trap surfaces. */
+export async function booleanUnion(a: MeshData, b: MeshData): Promise<MeshData> {
+  const wasm = await manifold();
+  return withScope(async (s) => {
+    const solidA = s.keep(wasm.Manifold.ofMesh(await toManifoldMesh(a)));
+    const solidB = s.keep(wasm.Manifold.ofMesh(await toManifoldMesh(b)));
+    return fromManifold(s.keep(solidA.add(solidB)));
+  });
 }
 
 /** A closed torus-arc handle standing off the side of the mug body. */
@@ -278,7 +330,13 @@ function handleLoop(): MeshData {
     const ni = (i + 1) % major;
     for (let j = 0; j < minor; j++) {
       const nj = (j + 1) % minor;
-      addQuad(b, grid[i]![j]!, grid[ni]![j]!, grid[ni]![nj]!, grid[i]![nj]!);
+      // Reversed relative to torus(): this loop lives in the XZ plane, which is
+      // the standard torus with Y and Z swapped. Swapping two axes is a
+      // reflection, and a reflection flips orientation -- so the same vertex
+      // order that faces outward there faces inward here. Get this wrong and
+      // Manifold reads the handle as a void and *subtracts* it, quietly carving
+      // a channel into the mug instead of adding a handle.
+      addQuad(b, grid[i]![j]!, grid[i]![nj]!, grid[ni]![nj]!, grid[ni]![j]!);
     }
   }
   return finish(b);
